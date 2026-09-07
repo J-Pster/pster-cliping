@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "clipador"
+version = "0.1.0"
+description = "CLI de geração automática de clipes de conteúdo político a partir de vídeos do YouTube"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic",
+    "google-api-python-client",
+    "yt-dlp",
+    "python-dotenv",
+    "pillow",
+    "pysubs2",
+]
+
+[project.optional-dependencies]
+video = [
+    "faster-whisper",
+    "opencv-python",
+    "mediapipe",
+    "scenedetect",
+    "librosa",
+    "whisperx",
+]
+cloud-transcribe = [
+    "assemblyai",
+    "elevenlabs",
+]
+thumbnail-ai = [
+    "rembg",
+    "google-genai",
+]
+publish = [
+    "requests",
+]
+dev = [
+    "pytest",
+    "pytest-mock",
+    "numpy",
+]
+
+[project.scripts]
+clipador = "clipador.cli:main"
+clipador-publish = "clipador.publish.cli:main"
+clipador-rebrand = "clipador.rebrand.cli:main"
+clipador-main-thumbnail = "clipador.main_thumbnail_cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/clipador"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

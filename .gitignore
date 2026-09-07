@@ -1,0 +1,76 @@
+# === Raiz (docker-compose.yml) ===
+.env
+.env.*
+!.env.example
+
+# === Engine (Python) ===
+engine/__pycache__/
+engine/**/__pycache__/
+engine/*.py[cod]
+engine/**/*.py[cod]
+engine/*$py.class
+engine/**/*.egg-info/
+engine/.eggs/
+engine/build/
+engine/dist/
+engine/.venv/
+engine/venv/
+engine/env/
+engine/.env
+engine/.env.*
+!engine/.env.example
+engine/*.mp4
+engine/*.mov
+engine/*.mkv
+engine/*.wav
+engine/*.mp3
+engine/*.m4a
+engine/output/
+engine/models/
+engine/vendor/
+engine/work/
+engine/.pytest_cache/
+engine/.ruff_cache/
+engine/.clipador/
+engine/credentials/
+engine/.staging_*/
+
+# === Backend (NestJS) ===
+backend/node_modules/
+backend/dist/
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# === Frontend (Angular) ===
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# === Editores / SO ===
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# === OMC (estado operacional efêmero, mas .omc/skills fica versionado) ===
+# "**/" pega tambem o .omc/ aninhado de cada subprojeto (engine/.omc, backend/.omc,
+# frontend/.omc), nao so o da raiz - session state/replay pode conter texto de
+# ferramentas rodadas na sessao (potencialmente sensivel), nunca deve ser versionado.
+**/.omc/state/
+**/.omc/notepad.md
+**/.omc/project-memory.json
+**/.omc/project-memory.json.tmp.*
+**/.omc/.project-memory.json.tmp.*
+**/.omc/research/
+**/.omc/logs/
+**/.omc/artifacts/
+**/.omc/handoffs/
+**/.omc/ultragoal/
+**/.omc/sessions/
+
+# === Claude Code (estado operacional efêmero) ===
+.claude/scheduled_tasks.lock
