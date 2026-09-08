@@ -6,163 +6,166 @@
 [![Angular](https://img.shields.io/badge/frontend-Angular%2021-DD0031?logo=angular&logoColor=white)](frontend/package.json)
 [![Electron](https://img.shields.io/badge/local--use-Electron-47848F?logo=electron&logoColor=white)](local-use/package.json)
 
-**Clipador** transforma um vídeo cru do YouTube (ou um arquivo local) em uma fila de
-clipes curtos (9:16, formato Reels/Shorts/TikTok) e longos (16:9), já cortados,
-legendados, com thumbnail e metadados prontos, para um humano só revisar e postar.
+**Read this in [Portuguese (pt-BR)](README.pt-BR.md).**
 
-Nada é publicado automaticamente: o pipeline é 100% de **geração assistida**, o clipe
-sempre passa por uma checagem editorial antes de ir ao ar.
+**Clipador** turns a raw YouTube video (or a local file) into a queue of short (9:16,
+Reels/Shorts/TikTok format) and long (16:9) clips, already cut, subtitled, with a
+thumbnail and metadata, ready for a human to review and post.
 
-## Índice
+Nothing publishes automatically: the pipeline is 100% **assisted generation**, every
+clip always goes through an editorial checkpoint before going live.
 
-- [O que o projeto faz](#o-que-o-projeto-faz)
-- [Como funciona (arquitetura)](#como-funciona-arquitetura)
-- [Estrutura do repositório](#estrutura-do-repositório)
-- [Pré-requisitos](#pré-requisitos)
-- [Instalação e primeira execução](#instalação-e-primeira-execução)
-  - [1. Clonar e configurar variáveis de ambiente](#1-clonar-e-configurar-variáveis-de-ambiente)
-  - [2. Subir backend + banco (Docker)](#2-subir-backend--banco-docker)
-  - [3. Rodar o frontend](#3-rodar-o-frontend)
-  - [4. Rodar o engine diretamente (CLI)](#4-rodar-o-engine-diretamente-cli)
-  - [5. Alternativa sem instalar nada de código: a GUI desktop](#5-alternativa-sem-instalar-nada-de-código-a-gui-desktop)
-- [Variáveis de ambiente](#variáveis-de-ambiente)
-- [Uso: dois jeitos de gerar clipes](#uso-dois-jeitos-de-gerar-clipes)
-- [Comandos úteis por parte do projeto](#comandos-úteis-por-parte-do-projeto)
-- [Documentação adicional](#documentação-adicional)
-- [Licença](#licença)
+## Table of contents
 
-## O que o projeto faz
+- [What the project does](#what-the-project-does)
+- [How it works (architecture)](#how-it-works-architecture)
+- [Repository structure](#repository-structure)
+- [Prerequisites](#prerequisites)
+- [Installation and first run](#installation-and-first-run)
+  - [1. Clone and configure environment variables](#1-clone-and-configure-environment-variables)
+  - [2. Start backend + database (Docker)](#2-start-backend--database-docker)
+  - [3. Run the frontend](#3-run-the-frontend)
+  - [4. Run the engine directly (CLI)](#4-run-the-engine-directly-cli)
+  - [5. Alternative without installing any code: the desktop GUI](#5-alternative-without-installing-any-code-the-desktop-gui)
+- [Environment variables](#environment-variables)
+- [Usage: two ways to generate clips](#usage-two-ways-to-generate-clips)
+- [Useful commands per part of the project](#useful-commands-per-part-of-the-project)
+- [Additional documentation](#additional-documentation)
+- [License](#license)
 
-Você dá um link do YouTube (ou um arquivo de vídeo local) e uma categoria de conteúdo, e
-o Clipador entrega, para cada clipe:
+## What the project does
 
-- **Seleção automática dos melhores trechos** do vídeo original, escolhidos por um LLM a
-  partir da transcrição completa (não é corte por silêncio/cena genérico: o modelo lê o
-  conteúdo e escolhe o que tem potencial de viralizar, com rerank e checagem de prosódia).
-- **Reenquadramento vertical (9:16)** com detecção de rosto e de quem está falando, para
-  o clipe já sair enquadrado como um Reels/Short de verdade, não um vídeo horizontal com
-  barras pretas.
-- **Legenda embutida estilo karaokê**, palavra a palavra, com presets visuais prontos
-  (`impacto`, `anton`, `neon`, `classico`) e opção de destacar palavras-chave com cor
-  própria.
-- **Thumbnail composta por IA**: recorte da pessoa, tratamento/geração de fundo via
-  Gemini ("Nano Banana"), com fallback local (Pillow) caso a chave de IA não esteja
-  configurada, então o pipeline nunca trava por falta dela.
-- **Título, descrição e hashtags** gerados por LLM, prontos para colar na publicação.
-- **Marca d'água opcional**, aplicada por decisão explícita a cada execução (nunca por
-  default silencioso).
-- **Fila de revisão**: cada execução gera um manifesto (`manifest.json`) e um
-  `ready-to-post.txt` por clipe; rodar de novo sobre o mesmo vídeo gera clipes **novos**,
-  sem repetir trechos já usados.
+You give it a YouTube link (or a local video file) and a content category, and Clipador
+delivers, for each clip:
 
-O mesmo motor (`engine/`) pode ser usado de duas formas:
+- **Automatic selection of the best excerpts** from the source video, chosen by an LLM
+  from the full transcript (not generic silence/scene cutting: the model reads the
+  content and picks what has viral potential, with a rerank pass and a prosody check).
+- **Vertical reframing (9:16)** with face detection and active-speaker detection, so the
+  clip comes out framed like an actual Reel/Short, not a horizontal video with black
+  bars.
+- **Karaoke-style burned-in subtitles**, word by word, with ready-made visual presets
+  (`impacto`, `anton`, `neon`, `classico`) and an option to highlight keywords with their
+  own color.
+- **AI-composed thumbnail**: person cutout, background treatment/generation via Gemini
+  ("Nano Banana"), with a local fallback (Pillow) when the AI key isn't configured, so
+  the pipeline never gets stuck for lack of it.
+- **Title, description and hashtags** generated by an LLM, ready to paste into the post.
+- **Optional watermark**, applied by explicit decision on each run (never a silent
+  default).
+- **Review queue**: every run produces a manifest (`manifest.json`) and a
+  `ready-to-post.txt` per clip; re-running against the same video generates **new**
+  clips, without repeating excerpts already used.
 
-1. **Como parte do SaaS completo** (`backend` + `frontend`): upload pela web, fila de
-   jobs, autenticação, histórico de clipes por conta.
-2. **Standalone, via GUI desktop** (`local-use/`) ou **direto pela CLI Python**, sem
-   precisar subir backend nem frontend, ideal para rodar na própria máquina.
+The same engine (`engine/`) can be used in two ways:
 
-## Como funciona (arquitetura)
+1. **As part of the full SaaS** (`backend` + `frontend`): web upload, job queue,
+   authentication, per-account clip history.
+2. **Standalone, via the desktop GUI** (`local-use/`) or **directly through the Python
+   CLI**, with no need to run backend or frontend, ideal for running on your own machine.
+
+## How it works (architecture)
 
 ```
-YouTube / arquivo local
+YouTube / local file
         │
         ▼
-┌───────────────────┐   transcrição, seleção de trechos, corte, reenquadro,
-│  engine (Python)  │   legenda, thumbnail, título/descrição/hashtags
-└─────────▲─────────┘   roda como CLI, sem servidor próprio
-          │  orquestra via subprocesso/fila (nunca reimplementa a lógica do engine)
+┌───────────────────┐   transcription, excerpt selection, cutting, reframing,
+│  engine (Python)  │   subtitles, thumbnail, title/description/hashtags
+└─────────▲─────────┘   runs as a CLI, no server of its own
+          │  orchestrates via subprocess/queue (never reimplements the engine's logic)
 ┌─────────┴─────────┐
-│ backend (NestJS)  │   jobs, usuários, clipes, autenticação (Cognito), billing
+│ backend (NestJS)  │   jobs, users, clips, authentication (Cognito), billing
 └─────────▲─────────┘   Postgres via TypeORM
           │  HTTP
 ┌─────────┴─────────┐
-│ frontend (Angular) │  upload do vídeo, progresso do job, revisão/exportação
+│ frontend (Angular) │  video upload, job progress, review/export
 └────────────────────┘
 ```
 
-- **`engine/`** é a única parte que sabe transcrever, cortar, reenquadrar, legendar e
-  gerar thumbnail/metadados. É tratado como **caixa-preta** pelo backend: nada dessa
-  lógica é reimplementada em TypeScript.
-- **`backend/`** é fino em orquestração: recebe o pedido, chama o engine, persiste
-  resultado, nunca decide sozinho o que é "um bom corte" ou "uma boa thumbnail".
-- **`frontend/`** só fala com o backend por HTTP, nunca chama o engine diretamente.
-- **`local-use/`** é um caminho paralelo que pula backend e frontend inteiramente: uma
-  janela Electron chama o `engine` local (o mesmo código Python), pensada para quem quer
-  usar o Clipador sem operar um servidor.
+- **`engine/`** is the only part that knows how to transcribe, cut, reframe, subtitle,
+  and generate thumbnails/metadata. The backend treats it as a **black box**: none of
+  that logic is reimplemented in TypeScript.
+- **`backend/`** is thin on orchestration: it receives the request, calls the engine,
+  persists the result, and never decides on its own what counts as "a good cut" or "a
+  good thumbnail".
+- **`frontend/`** only talks to the backend over HTTP, never calls the engine directly.
+- **`local-use/`** is a parallel path that skips backend and frontend entirely: an
+  Electron window calls the local `engine` (the same Python code), meant for anyone who
+  wants to use Clipador without running a server.
 
-## Estrutura do repositório
+## Repository structure
 
 ```
 pster-cliping/
-├── engine/            # pipeline Python (transcrição → corte → legenda → thumbnail → metadados)
-│   ├── src/clipador/  # código do pipeline, ver engine/CLAUDE.md para o layout completo
-│   ├── kb/             # base de conhecimento por categoria de conteúdo
-│   └── README.md        # como instalar e rodar o engine, guia completo de CLI
-├── backend/           # API NestJS 11 (TypeORM + PostgreSQL)
+├── engine/            # Python pipeline (transcription → cut → subtitles → thumbnail → metadata)
+│   ├── src/clipador/  # pipeline code, see engine/CLAUDE.md for the full layout
+│   ├── kb/             # knowledge base per content category
+│   └── README.md        # how to install and run the engine, full CLI guide
+├── backend/           # NestJS 11 API (TypeORM + PostgreSQL)
 │   └── README.md
-├── frontend/          # SPA Angular 21 (standalone components)
+├── frontend/          # Angular 21 SPA (standalone components)
 │   └── README.md
-├── local-use/         # GUI desktop Electron, wrapper local do engine
+├── local-use/         # Electron desktop GUI, local wrapper around the engine
 │   └── README.md
-├── .docs/decisions/   # decisões técnicas com a evidência que as sustenta
-├── docker-compose.yml # Postgres + backend, dev local
-├── DESIGN.md          # sistema de design usado pelo frontend
+├── .docs/decisions/   # technical decision records with the evidence behind them
+├── docker-compose.yml # Postgres + backend, local dev
+├── DESIGN.md          # design system used by the frontend
 └── LICENSE            # PolyForm Noncommercial 1.0.0
 ```
 
-Cada pasta de código tem seu próprio `README.md` (instalação e uso) e `CLAUDE.md`
-(stack, layout interno e decisões técnicas vinculantes daquela parte). Este README da
-raiz é o ponto de entrada; para detalhes profundos de qualquer parte, vá direto no
-README/CLAUDE.md dela.
+Each code folder has its own `README.md` (install and usage) and `CLAUDE.md` (stack,
+internal layout, and binding technical decisions for that part). This root README is
+the entry point; for deep detail on any part, go straight to its README/CLAUDE.md.
 
-## Pré-requisitos
+## Prerequisites
 
-| Ferramenta | Para quê | Obrigatório para |
+| Tool | What for | Required for |
 | --- | --- | --- |
-| **Docker** e **Docker Compose** | sobe Postgres + backend em dev | usar o SaaS completo (backend/frontend) |
-| **Node.js 24** e **npm** | backend (NestJS) e frontend (Angular) | backend/frontend/local-use |
-| **Python >= 3.11** | roda o engine | qualquer geração de clipe (SaaS, CLI ou GUI) |
-| **ffmpeg** no PATH, compilado com **libass** | corte, reenquadro, burn-in de legenda | engine |
-| **AWS CLI configurado (SSO)** | Cognito/Secrets Manager em dev | backend (autenticação real, sem fallback local) |
-| GPU CUDA | opcional, só se optar por transcrição local (`whisperx`/`faster-whisper`) | nada por padrão: a config default roda 100% em CPU/nuvem |
+| **Docker** and **Docker Compose** | starts Postgres + backend in dev | using the full SaaS (backend/frontend) |
+| **Node.js 24** and **npm** | backend (NestJS) and frontend (Angular) | backend/frontend/local-use |
+| **Python >= 3.11** | runs the engine | any clip generation (SaaS, CLI, or GUI) |
+| **ffmpeg** on PATH, built with **libass** | cutting, reframing, subtitle burn-in | engine |
+| **AWS CLI configured (SSO)** | Cognito/Secrets Manager in dev | backend (real authentication, no local fallback) |
+| CUDA GPU | optional, only if you opt into local transcription (`whisperx`/`faster-whisper`) | nothing by default: the default configuration runs 100% on CPU/cloud |
 
-## Instalação e primeira execução
+## Installation and first run
 
-### 1. Clonar e configurar variáveis de ambiente
+### 1. Clone and configure environment variables
 
 ```bash
 git clone https://github.com/J-Pster/pster-cliping.git
 cd pster-cliping
 ```
 
-Copie o `.env.example` de cada pasta que for usar e preencha as chaves. Nenhum `.env` é
-versionado (ver `.gitignore`); só os `.env.example` de cada pasta ficam no repositório.
+Copy the `.env.example` of every folder you plan to use and fill in the keys. No `.env`
+file is versioned (see `.gitignore`); only the `.env.example` of each folder ships in
+the repository.
 
 ```bash
-cp .env.example .env                    # raiz: Postgres local, perfil AWS, Cognito
-cp backend/.env.example backend/.env     # backend: hoje só a porta HTTP (o resto vem do docker-compose)
-cp engine/.env.example engine/.env       # engine: chaves de transcrição/LLM (ver tabela abaixo)
+cp .env.example .env                    # root: local Postgres, AWS profile, Cognito
+cp backend/.env.example backend/.env     # backend: today just the HTTP port (the rest comes from docker-compose)
+cp engine/.env.example engine/.env       # engine: transcription/LLM keys (see table below)
 ```
 
-### 2. Subir backend + banco (Docker)
+### 2. Start backend + database (Docker)
 
-Da raiz do repositório:
+From the repository root:
 
 ```bash
 docker compose up -d
 ```
 
-Sobe Postgres (porta `5433` no host) e o backend NestJS (porta `3000`), com hot-reload
-do código em `backend/src`. O container do backend monta `~/.aws` (somente leitura) e
-usa o perfil definido em `AWS_PROFILE` para autenticar de verdade contra
-Cognito/Secrets Manager, sem fallback local para segredo de produção.
+Starts Postgres (port `5433` on the host) and the NestJS backend (port `3000`), with
+hot-reload of the code under `backend/src`. The backend container mounts `~/.aws`
+read-only and uses the profile set in `AWS_PROFILE` to authenticate for real against
+Cognito/Secrets Manager, with no local fallback for production secrets.
 
 ```bash
-docker logs cortepolitico-backend -f   # acompanhar os logs
+docker logs cortepolitico-backend -f   # follow the logs
 ```
 
-### 3. Rodar o frontend
+### 3. Run the frontend
 
 ```bash
 cd frontend
@@ -170,33 +173,33 @@ npm install
 npm start
 ```
 
-Abre em `http://localhost:4200`, consumindo o backend em `http://localhost:3000`.
+Opens at `http://localhost:4200`, talking to the backend at `http://localhost:3000`.
 
-### 4. Rodar o engine diretamente (CLI)
+### 4. Run the engine directly (CLI)
 
-O engine não depende do backend/frontend para funcionar: pode ser chamado direto pela
-linha de comando. Guia completo de instalação (extras opcionais, GPU, fontes) e de uso
-(todas as flags) em [`engine/README.md`](engine/README.md); resumo mínimo:
+The engine does not depend on the backend/frontend to work: it can be called directly
+from the command line. Full install guide (optional extras, GPU, fonts) and usage guide
+(every flag) in [`engine/README.md`](engine/README.md); minimal summary:
 
 ```bash
 cd engine
 pip install -e ".[video,cloud-transcribe,thumbnail-ai]"
-cp .env.example .env   # se ainda não fez no passo 1
-# preencha ELEVENLABS_API_KEY e CLAUDE_CODE_OAUTH_TOKEN (ou ANTHROPIC_API_KEY) no .env
+cp .env.example .env   # if you haven't already in step 1
+# fill in ELEVENLABS_API_KEY and CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY) in .env
 
 python -m clipador.cli "https://www.youtube.com/watch?v=XXXXXXXXXXX" \
   --category politico_pessoa \
   --watermark off
 ```
 
-Os clipes saem em `engine/output/<video_id>_<titulo>/`, junto com thumbnail, legenda
-queimada, metadados e um `ready-to-post.txt` por clipe.
+Clips land in `engine/output/<video_id>_<title>/`, together with the thumbnail, burned-in
+subtitles, metadata, and a `ready-to-post.txt` per clip.
 
-### 5. Alternativa sem instalar nada de código: a GUI desktop
+### 5. Alternative without installing any code: the desktop GUI
 
-`local-use/` é um app Electron que roda o mesmo engine por trás de uma interface
-gráfica, sem precisar de terminal, backend ou frontend. Útil para uso pessoal na própria
-máquina. Requer o engine já instalado (passo 4). Detalhes em
+`local-use/` is an Electron app that runs the same engine behind a graphical interface,
+with no terminal, backend, or frontend needed. Useful for personal use on your own
+machine. Requires the engine to already be installed (step 4). Details in
 [`local-use/README.md`](local-use/README.md):
 
 ```bash
@@ -205,85 +208,85 @@ npm install
 npm run dev
 ```
 
-## Variáveis de ambiente
+## Environment variables
 
-Nenhuma credencial fica hardcoded em código: tudo vem de `.env` (dev) ou, em produção, do
-AWS Secrets Manager. Cada pasta documenta as suas variáveis linha a linha no próprio
-`.env.example`; resumo das mais importantes:
+No credential is hardcoded in code: everything comes from `.env` (dev) or, in
+production, from AWS Secrets Manager. Each folder documents its variables line by line
+in its own `.env.example`; summary of the most important ones:
 
-### Raiz (`.env`, usada pelo `docker-compose.yml`)
+### Root (`.env`, used by `docker-compose.yml`)
 
-| Variável | Obrigatória | Descrição |
+| Variable | Required | Description |
 | --- | --- | --- |
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | sim | credenciais do Postgres local, qualquer valor serve em dev |
-| `AWS_PROFILE` | sim (backend real) | perfil AWS CLI/SSO montado no container do backend |
-| `AWS_REGION` | sim | região AWS do projeto |
-| `COGNITO_USER_POOL_ID` / `COGNITO_CLIENT_ID` | sim (auth) | User Pool do Cognito provisionado na conta AWS |
-| `SECRETS_MANAGER_SECRET_ID` | sim (auth) | segredo com as chaves de API usadas pelo backend |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | yes | local Postgres credentials, any value works in dev |
+| `AWS_PROFILE` | yes (real backend) | AWS CLI/SSO profile mounted into the backend container |
+| `AWS_REGION` | yes | AWS region for the project |
+| `COGNITO_USER_POOL_ID` / `COGNITO_CLIENT_ID` | yes (auth) | Cognito User Pool provisioned in the AWS account |
+| `SECRETS_MANAGER_SECRET_ID` | yes (auth) | secret holding the API keys used by the backend |
 
 ### `engine/.env`
 
-| Variável | Obrigatória | Descrição |
+| Variable | Required | Description |
 | --- | --- | --- |
-| `ELEVENLABS_API_KEY` | **sim**, por padrão | transcrição via ElevenLabs Scribe v2 (backend default; sem a chave o pipeline falha alto, de propósito, ver [`.docs/decisions/2026-09-02-transcricao-elevenlabs-scribe.md`](.docs/decisions/2026-09-02-transcricao-elevenlabs-scribe.md)) |
-| `CLAUDE_CODE_OAUTH_TOKEN` | sim (modo `oauth`, default) | token gerado com `claude setup-token`, consome cota da assinatura Claude Pro/Max |
-| `ANTHROPIC_API_KEY` | sim (se `CLIPADOR_LLM_AUTH_MODE=api_key`) | cobrança pay-per-use direto na API Anthropic |
-| `GEMINI_API_KEY` | opcional | thumbnail com IA (sem ela, cai para tratamento local via Pillow) e LLM de texto se `CLIPADOR_TEXT_LLM_PROVIDER=gemini` |
-| `CLIPADOR_TEXT_LLM_PROVIDER` | opcional (`claude` default) | `claude` ou `gemini`, LLM usado nas etapas de texto |
-| `CLIPADOR_LLM_AUTH_MODE` | opcional (`oauth` default) | `oauth` ou `api_key`, só importa com `CLIPADOR_TEXT_LLM_PROVIDER=claude` |
-| `YOUTUBE_API_KEY` | opcional, hoje não usada pelo pipeline principal | YouTube Data API v3, ver nota em `engine/README.md` |
-| `HUGGINGFACE_TOKEN` | opcional | diarização real no backend local `whisperx --diarize` |
-| `ASSEMBLYAI_API_KEY` | opcional | só para `--transcriber assemblyai` |
-| `BUFFER_API_KEY` + `BUFFER_CHANNEL_<GRUPO>_<PLATAFORMA>` | opcional | publicação automática dos clipes aprovados via [Buffer](https://buffer.com) (`clipador-publish`) |
+| `ELEVENLABS_API_KEY` | **yes**, by default | transcription via ElevenLabs Scribe v2 (default backend; without the key the pipeline fails loudly on purpose, see [`.docs/decisions/2026-09-02-transcricao-elevenlabs-scribe.md`](.docs/decisions/2026-09-02-transcricao-elevenlabs-scribe.md)) |
+| `CLAUDE_CODE_OAUTH_TOKEN` | yes (`oauth` mode, default) | token generated with `claude setup-token`, consumes the Claude Pro/Max subscription quota |
+| `ANTHROPIC_API_KEY` | yes (if `CLIPADOR_LLM_AUTH_MODE=api_key`) | pay-per-use billing directly on the Anthropic API |
+| `GEMINI_API_KEY` | optional | AI thumbnail (without it, falls back to a local Pillow treatment) and text LLM if `CLIPADOR_TEXT_LLM_PROVIDER=gemini` |
+| `CLIPADOR_TEXT_LLM_PROVIDER` | optional (`claude` default) | `claude` or `gemini`, the LLM used for the text stages |
+| `CLIPADOR_LLM_AUTH_MODE` | optional (`oauth` default) | `oauth` or `api_key`, only matters with `CLIPADOR_TEXT_LLM_PROVIDER=claude` |
+| `YOUTUBE_API_KEY` | optional, not used by the main pipeline today | YouTube Data API v3, see the note in `engine/README.md` |
+| `HUGGINGFACE_TOKEN` | optional | real diarization on the local `whisperx --diarize` backend |
+| `ASSEMBLYAI_API_KEY` | optional | only for `--transcriber assemblyai` |
+| `BUFFER_API_KEY` + `BUFFER_CHANNEL_<GROUP>_<PLATFORM>` | optional | automatic publishing of approved clips via [Buffer](https://buffer.com) (`clipador-publish`) |
 
 ### `backend/.env`
 
-| Variável | Obrigatória | Descrição |
+| Variable | Required | Description |
 | --- | --- | --- |
-| `PORT` | não (default `3000`) | porta HTTP do backend; via `docker compose` já vem definida pelo serviço |
+| `PORT` | no (default `3000`) | backend HTTP port; already set by the service when run via `docker compose` |
 
-## Uso: dois jeitos de gerar clipes
+## Usage: two ways to generate clips
 
-**Pelo SaaS (backend + frontend):** suba os dois (passos 2 e 3), acesse o frontend,
-faça upload do vídeo ou cole o link do YouTube, acompanhe o progresso do job e revise os
-clipes gerados na fila antes de baixar/publicar.
+**Through the SaaS (backend + frontend):** start both (steps 2 and 3), open the
+frontend, upload the video or paste the YouTube link, follow the job's progress, and
+review the generated clips in the queue before downloading/publishing.
 
-**Direto pela CLI ou pela GUI desktop:** rode `engine` isolado (passo 4) ou `local-use`
-(passo 5). Mesmo motor, sem precisar de conta nem servidor. Bom para uso pessoal ou para
-depurar o pipeline sem o resto da stack.
+**Directly through the CLI or the desktop GUI:** run `engine` standalone (step 4) or
+`local-use` (step 5). Same engine, no account or server needed. Good for personal use or
+for debugging the pipeline without the rest of the stack.
 
-## Comandos úteis por parte do projeto
+## Useful commands per part of the project
 
 ```bash
-# engine (Python) — da pasta engine/
-python -m pytest tests/ -q                     # suíte offline, sem rede/ffmpeg real
-python -m clipador.cli --help                   # lista completa de flags, sempre atual
-python scripts/run_test_video.py                # ponta a ponta com o vídeo de teste
+# engine (Python) — from the engine/ folder
+python -m pytest tests/ -q                     # offline suite, no real network/ffmpeg
+python -m clipador.cli --help                   # full, always-current flag list
+python scripts/run_test_video.py                # end to end with the test video
 
-# backend (NestJS) — da pasta backend/
-npm run start:dev                                # dev sem Docker, watch mode
+# backend (NestJS) — from the backend/ folder
+npm run start:dev                                # dev without Docker, watch mode
 npm run build                                     # nest build
 npm run test                                      # Jest
 
-# frontend (Angular) — da pasta frontend/
+# frontend (Angular) — from the frontend/ folder
 npm start                                         # ng serve
-npm run build                                     # build de produção
-npm test                                          # testes unitários
+npm run build                                     # production build
+npm test                                          # unit tests
 
-# local-use (Electron) — da pasta local-use/
+# local-use (Electron) — from the local-use/ folder
 npm run dev                                       # app + hot reload
-npm run build                                     # typecheck + build de produção
+npm run build                                     # typecheck + production build
 ```
 
-## Documentação adicional
+## Additional documentation
 
-- [`engine/README.md`](engine/README.md) — guia completo de instalação e uso da CLI (todas as flags, extras opcionais, presets de legenda).
-- [`engine/CLAUDE.md`](engine/CLAUDE.md), [`backend/CLAUDE.md`](backend/CLAUDE.md), [`frontend/CLAUDE.md`](frontend/CLAUDE.md) — stack, layout interno e decisões técnicas vinculantes de cada parte.
-- [`.docs/decisions/`](.docs/decisions) — registros de decisão com a evidência por trás de escolhas não óbvias (ex: por que a transcrição usa ElevenLabs Scribe v2 e não um modelo local).
-- [`DESIGN.md`](DESIGN.md) — sistema de design (tokens, tipografia, cores) usado pelo frontend.
+- [`engine/README.md`](engine/README.md) — full install and CLI usage guide (every flag, optional extras, subtitle presets).
+- [`engine/CLAUDE.md`](engine/CLAUDE.md), [`backend/CLAUDE.md`](backend/CLAUDE.md), [`frontend/CLAUDE.md`](frontend/CLAUDE.md) — stack, internal layout, and binding technical decisions for each part.
+- [`.docs/decisions/`](.docs/decisions) — decision records with the evidence behind non-obvious choices (e.g. why transcription uses ElevenLabs Scribe v2 instead of a local model).
+- [`DESIGN.md`](DESIGN.md) — design system (tokens, typography, colors) used by the frontend.
 
-## Licença
+## License
 
-Este projeto está sob a [PolyForm Noncommercial License 1.0.0](./LICENSE): uso pessoal e
-não comercial é livre; uso comercial requer autorização direta do autor
-([Joao Pster](https://github.com/J-Pster)).
+This project is under the [PolyForm Noncommercial License 1.0.0](./LICENSE): personal
+and noncommercial use is free; commercial use requires direct authorization from the
+author ([Joao Pster](https://github.com/J-Pster)).
