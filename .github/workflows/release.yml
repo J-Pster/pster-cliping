@@ -1,0 +1,39 @@
+name: Release desktop app
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Build renderer/main/preload
+        run: npm run build
+
+      - name: Build embedded Python runtime (torch/opencv/mediapipe/whisperx, several GB)
+        run: npm run runtime:python
+
+      - name: Fetch bundled ffmpeg
+        run: npm run runtime:ffmpeg
+
+      - name: Package installer and publish to GitHub Releases
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

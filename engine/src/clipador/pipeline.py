@@ -26,6 +26,7 @@ from clipador import category as category_module
 from clipador.download.downloader import Downloader, YtDlpDownloader
 from clipador.export.cutter import ClipCutter
 from clipador.export.models import ClipOutput
+from clipador.export.eleitoral import render_disclaimer_image
 from clipador.export.review import ReviewQueue
 from clipador.export.thumbnail_frame import ThumbnailFramePrepender
 from clipador.export.watermark import WatermarkImages, WatermarkOverlay
@@ -35,6 +36,7 @@ from clipador.kb.knowledge import KnowledgeBase
 from clipador.main_thumbnail import MainVideoThumbnailResult, generate_main_video_thumbnail
 from clipador.metadata.generator import generate_metadata
 from clipador.metadata.models import ClipMetadata
+from clipador.progress import OnProgress, noop_progress
 from clipador.reframe.faces import MediaPipeFaceDetector
 from clipador.reframe.reframer import VerticalReframer
 from clipador.select.manifest import load_manifest, save_manifest
@@ -146,6 +148,12 @@ class PipelineConfig:
     # do frame cru. Cada peca tem fallback proprio, entao ligar isso nao exige rembg,
     # chave do Gemini nem modelo de rosto instalados.
     enable_thumbnail_composition: bool = True
+    # Desligado gera o clipe inteiro sem NENHUMA thumbnail: pula a etapa de thumbnail por
+    # completo (nao so a composicao), e no formato curto tambem pula prender a capa como
+    # 1o frame do video (ver `_process_candidate`). Decisao editorial por rodada, como
+    # marca d'agua - por isso sem default silencioso escondido, a CLI expõe
+    # `--generate-thumbnails on|off` e o valor default aqui e o comportamento de sempre.
+    generate_thumbnail: bool = True
     # Nome do navegador local logado ("firefox", "chrome", "edge", ...) pra ler cookies
     # de sessao e evitar o 403 do YouTube em downloads de video+audio separados. Ver
     # docstring de YtDlpDownloader.
@@ -165,6 +173,13 @@ class PipelineConfig:
     # usuario tambem vai postar a gravacao/live completa, nao so os clipes. Reaproveita a
     # transcricao ja feita pros cortes, nao transcreve de novo.
     generate_main_thumbnail: bool = False
+    # Tarja de propaganda eleitoral: texto pequeno e rotacionado numa lateral, nos dois
+    # formatos (ver clipador.export.eleitoral). Desligada por padrao pelo mesmo motivo da
+    # marca d'agua: estampar ou nao e decisao editorial da rodada, nao convencao do pipeline.
+    eleitoral_enabled: bool = False
+    # Texto exibido na tarja quando `eleitoral_enabled` esta ligado. Renderizado uma unica
+    # vez por rodada (o texto nao muda entre clipes) via `render_disclaimer_image`.
+    eleitoral_text: str = ""
 
     def __post_init__(self) -> None:
         category_module.validate_category(self.category)
@@ -339,6 +354,7 @@ def _process_candidate(
     metadata_client: Any | None,
     writer: ExportWriter,
     review_queue: ReviewQueue,
+    eleitoral_images: dict[str, Path] | None = None,
 ) -> ClipOutput:
     stage_dir = config.work_dir / video_id / clip_id
     stage_dir.mkdir(parents=True, exist_ok=True)
@@ -391,6 +407,19 @@ def _process_candidate(
             stage_dir / "watermarked.mp4",
         )
 
+    # Mesma logica da marca d'agua (video inteiro, ffmpeg reaproveitado): uma imagem por
+    # formato, porque a tarja e do tamanho do quadro inteiro e o quadro curto/longo tem
+    # proporcao diferente.
+    eleitoral_image_path = (eleitoral_images or {}).get(candidate.format)
+    if eleitoral_image_path is not None:
+        current = _run(
+            "eleitoral",
+            watermark_overlay.apply,
+            current,
+            eleitoral_image_path,
+            stage_dir / "eleitoral.mp4",
+        )
+
     transcript_excerpt = clip_excerpt(transcription, candidate.start_word_id, candidate.end_word_id)
     metadata: ClipMetadata = _run(
         "metadata",
@@ -402,38 +431,40 @@ def _process_candidate(
         category=config.category,
     )
 
-    # Escolha do "assunto" da thumbnail (qual figura publica cadastrada, se alguma, e o
-    # tema deste trecho) e sub-etapa OPCIONAL como as demais da composicao: uma falha
-    # aqui nao pode derrubar um clipe que, sem referencia facial nenhuma, ainda sai
-    # correto (so cai pro comportamento de sempre, sem identidade ancorada).
-    subject = None
-    if config.category in THUMBNAIL_SUBJECT_CATEGORIES:
-        try:
-            subject = select_thumbnail_subject(candidate, transcript_excerpt, metadata_client)
-        except Exception as exc:
-            logger.warning(
-                "Selecao do assunto da thumbnail falhou (%s); seguindo sem referencia facial.",
-                exc,
-            )
+    thumbnail_path: Path | None = None
+    if config.generate_thumbnail:
+        # Escolha do "assunto" da thumbnail (qual figura publica cadastrada, se alguma, e
+        # o tema deste trecho) e sub-etapa OPCIONAL como as demais da composicao: uma
+        # falha aqui nao pode derrubar um clipe que, sem referencia facial nenhuma, ainda
+        # sai correto (so cai pro comportamento de sempre, sem identidade ancorada).
+        subject = None
+        if config.category in THUMBNAIL_SUBJECT_CATEGORIES:
+            try:
+                subject = select_thumbnail_subject(candidate, transcript_excerpt, metadata_client)
+            except Exception as exc:
+                logger.warning(
+                    "Selecao do assunto da thumbnail falhou (%s); seguindo sem referencia facial.",
+                    exc,
+                )
 
-    thumbnail_path = _run(
-        "thumbnail",
-        thumbnail_builder.build,
-        pre_subtitle_video,
-        stage_dir / "thumbnail.png",
-        stage_dir / "frames",
-        headline=metadata.thumbnail_headline,
-        subject=subject,
-    )
-
-    if candidate.format in VERTICAL_FORMATS:
-        current = _run(
-            "thumbnail_frame",
-            thumbnail_frame_prepender.prepend,
-            current,
-            thumbnail_path,
-            stage_dir / "with_thumbnail_frame.mp4",
+        thumbnail_path = _run(
+            "thumbnail",
+            thumbnail_builder.build,
+            pre_subtitle_video,
+            stage_dir / "thumbnail.png",
+            stage_dir / "frames",
+            headline=metadata.thumbnail_headline,
+            subject=subject,
         )
+
+        if candidate.format in VERTICAL_FORMATS:
+            current = _run(
+                "thumbnail_frame",
+                thumbnail_frame_prepender.prepend,
+                current,
+                thumbnail_path,
+                stage_dir / "with_thumbnail_frame.mp4",
+            )
 
     output = _run(
         "export",
@@ -470,11 +501,14 @@ def run_pipeline(
     watermark_overlay: WatermarkOverlay | None = None,
     writer: ExportWriter | None = None,
     review_queue: ReviewQueue | None = None,
+    on_progress: OnProgress = noop_progress,
 ) -> PipelineResult:
     config.work_dir.mkdir(parents=True, exist_ok=True)
     config.output_root.mkdir(parents=True, exist_ok=True)
 
     source = resolve_source(input_source)
+    if source.needs_download:
+        on_progress({"event": "phase", "phase": "download", "message": "Baixando video..."})
     video_path, video_id, video_title = _resolve_video(
         source,
         downloader
@@ -488,6 +522,9 @@ def run_pipeline(
     output_folder = build_output_folder_name(video_id, video_title)
     logger.info("Pasta de saida: %s", output_folder)
     original_video_url = _original_video_url(source, video_id)
+    on_progress(
+        {"event": "phase", "phase": "download_done", "message": f"Video pronto: {output_folder}"}
+    )
 
     # Transcricao e a etapa mais cara do pipeline (minutos, mesmo em GPU) - reaproveita
     # do cache em vez de refazer a cada "gerar mais" clipes do mesmo video.
@@ -496,7 +533,11 @@ def run_pipeline(
     if cached is not None:
         transcription = cached
         logger.info("Transcricao reaproveitada do cache: %s", transcription_cache_path)
+        on_progress(
+            {"event": "phase", "phase": "transcribe_done", "message": "Transcricao reaproveitada do cache"}
+        )
     else:
+        on_progress({"event": "phase", "phase": "transcribe", "message": "Transcrevendo audio..."})
         # O vocabulario da KB da categoria condiciona o ASR nos nomes e siglas do dominio,
         # que e onde o Whisper mais erra (ver clipador.transcribe.vocabulary).
         transcription = (
@@ -504,6 +545,9 @@ def run_pipeline(
             or build_transcriber(config.transcriber, vocabulary=build_vocabulary(kb))
         ).transcribe(video_path)
         save_transcription(transcription, transcription_cache_path)
+        on_progress(
+            {"event": "phase", "phase": "transcribe_done", "message": "Transcricao concluida"}
+        )
 
     # Manifesto: trechos ja usados por formato (curto/longo sao listas separadas - o
     # mesmo assunto pode virar um clipe de cada, so nao duas vezes no mesmo formato) e o
@@ -512,6 +556,7 @@ def run_pipeline(
     manifest_path = config.output_root / output_folder / "manifest.json"
     manifest = load_manifest(manifest_path)
 
+    on_progress({"event": "phase", "phase": "select", "message": "Selecionando trechos com IA..."})
     targets = {SHORT_FORMAT: config.min_short_clips, LONG_FORMAT: config.min_long_clips}
     collected = select_clips_for_targets(
         transcription,
@@ -549,6 +594,13 @@ def run_pipeline(
     # um clipe que falhou numa etapa (ex.: LLM de metadados recusando o schema) queimar o
     # trecho pra sempre sem nunca ter virado clipe.
     save_manifest(manifest, manifest_path)
+    on_progress(
+        {
+            "event": "plan",
+            "total": len(clip_plan),
+            "message": f"{len(clip_plan)} clipe(s) planejado(s)",
+        }
+    )
 
     result = PipelineResult(
         source=source,
@@ -570,42 +622,104 @@ def run_pipeline(
     writer = writer or ExportWriter(config.output_root, handle=config.social_handle)
     review_queue = review_queue or ReviewQueue()
 
-    for clip_id, candidate in clip_plan:
+    # Renderizado UMA vez por rodada, fora do loop: o texto do aviso nao muda entre
+    # clipes, entao gerar o PNG a cada clipe seria trabalho repetido a toa. Uma imagem
+    # por formato porque curto e longo tem proporcao (e portanto layout da tarja)
+    # diferente.
+    eleitoral_images: dict[str, Path] | None = None
+    if config.eleitoral_enabled and config.eleitoral_text.strip():
+        eleitoral_images = {
+            SHORT_FORMAT: render_disclaimer_image(
+                config.eleitoral_text,
+                config.work_dir / "eleitoral_short.png",
+                frame_width=1080,
+                frame_height=1920,
+            ),
+            LONG_FORMAT: render_disclaimer_image(
+                config.eleitoral_text,
+                config.work_dir / "eleitoral_long.png",
+                frame_width=1920,
+                frame_height=1080,
+            ),
+        }
+
+    total_clips = len(clip_plan)
+    for position, (clip_id, candidate) in enumerate(clip_plan, start=1):
+        on_progress(
+            {
+                "event": "clip_start",
+                "clip_id": clip_id,
+                "format": candidate.format,
+                "index": position,
+                "total": total_clips,
+                "message": f"Processando clipe {position}/{total_clips} ({candidate.format})...",
+            }
+        )
         try:
-            result.clips.append(
-                _process_candidate(
-                    clip_id,
-                    candidate,
-                    transcription,
-                    kb,
-                    config,
-                    video_path,
-                    video_id,
-                    output_folder,
-                    original_video_url,
-                    cutter,
-                    reframer,
-                    subtitle_builder,
-                    burner,
-                    thumbnail_builder,
-                    thumbnail_frame_prepender,
-                    watermark_overlay,
-                    metadata_client,
-                    writer,
-                    review_queue,
-                )
+            output = _process_candidate(
+                clip_id,
+                candidate,
+                transcription,
+                kb,
+                config,
+                video_path,
+                video_id,
+                output_folder,
+                original_video_url,
+                cutter,
+                reframer,
+                subtitle_builder,
+                burner,
+                thumbnail_builder,
+                thumbnail_frame_prepender,
+                watermark_overlay,
+                metadata_client,
+                writer,
+                review_queue,
+                eleitoral_images,
             )
+            result.clips.append(output)
             # So marca o trecho como usado (exclui de selecoes futuras) DEPOIS do
             # export ter dado certo - ver o comentario acima de onde os indices
             # sao alocados. Salva a cada sucesso pra sobreviver a um crash no meio
             # do loop sem perder o que ja foi exportado de verdade.
             manifest.mark_used(candidate.format, candidate.start_word_id, candidate.end_word_id)
             save_manifest(manifest, manifest_path)
+            on_progress(
+                {
+                    "event": "clip_done",
+                    "clip_id": clip_id,
+                    "format": candidate.format,
+                    "directory": str(output.directory),
+                    "status": output.review_status,
+                    "index": position,
+                    "total": total_clips,
+                    "message": f"Clipe {position}/{total_clips} exportado",
+                }
+            )
         except ClipStageError as exc:
             logger.warning("Clipe %s falhou na etapa %s: %s", clip_id, exc.stage, exc.message)
             result.failures.append(ClipFailure(clip_id, exc.stage, exc.message))
+            on_progress(
+                {
+                    "event": "clip_failed",
+                    "clip_id": clip_id,
+                    "format": candidate.format,
+                    "stage": exc.stage,
+                    "message": exc.message,
+                    "index": position,
+                    "total": total_clips,
+                }
+            )
 
     if config.generate_main_thumbnail:
+        on_progress(
+            {
+                "event": "phase",
+                "phase": "main_thumbnail",
+                "message": "Gerando thumbnail do video principal...",
+            }
+        )
         try:
             result.main_thumbnail = generate_main_video_thumbnail(
                 video_path,

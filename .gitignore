@@ -35,20 +35,15 @@ engine/.clipador/
 engine/credentials/
 engine/.staging_*/
 
-# === Backend (NestJS) ===
-backend/node_modules/
-backend/dist/
-backend/.env
-backend/.env.*
-!backend/.env.example
-
-# === Frontend (Angular) ===
-frontend/node_modules/
-frontend/dist/
-frontend/.angular/
-frontend/.env
-frontend/.env.*
-!frontend/.env.example
+# === app (Electron) ===
+app/node_modules/
+app/out/
+app/dist/
+app/release/
+# runtime embutido no build (Python + engine copiado + ffmpeg), baixado/gerado por
+# npm run runtime:all (scripts/build-python-runtime.ps1, scripts/fetch-ffmpeg.ps1)
+app/resources/
+app/.runtime-tmp/
 
 # === Editores / SO ===
 .vscode/
@@ -57,8 +52,8 @@ frontend/.env.*
 Thumbs.db
 
 # === OMC (estado operacional efêmero, mas .omc/skills fica versionado) ===
-# "**/" pega tambem o .omc/ aninhado de cada subprojeto (engine/.omc, backend/.omc,
-# frontend/.omc), nao so o da raiz - session state/replay pode conter texto de
+# "**/" pega tambem o .omc/ aninhado de cada subprojeto (engine/.omc, app/.omc),
+# nao so o da raiz - session state/replay pode conter texto de
 # ferramentas rodadas na sessao (potencialmente sensivel), nunca deve ser versionado.
 **/.omc/state/
 **/.omc/notepad.md

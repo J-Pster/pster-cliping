@@ -10,6 +10,7 @@ from typing import Sequence
 
 from clipador import category as category_module
 from clipador.kb.knowledge import load_knowledge_base
+from clipador.progress import print_progress
 from clipador.rebrand.service import DEFAULT_OUTRO_IMAGE, rebrand_batch
 
 
@@ -57,6 +58,13 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=5.0,
         help="Duracao em segundos do outro/encerramento",
+    )
+    parser.add_argument(
+        "--eleitoral-text",
+        default=None,
+        help="Texto de aviso de propaganda eleitoral queimado numa tarja pequena e "
+        "rotacionada na lateral dos clipes (todo clipe de rebrand e formato curto). Sem "
+        "a flag, nenhuma tarja e aplicada.",
     )
     parser.add_argument(
         "--no-thumbnail-composition",
@@ -116,6 +124,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         face_model_path=args.face_model_path,
         limit=args.limit,
         category=args.category,
+        eleitoral_text=args.eleitoral_text or "",
+        on_progress=print_progress,
     )
 
     for clip in result.clips:

@@ -7,9 +7,11 @@ Gemini 3 Flash/Pro Image renderiza texto legivel de verdade (ao contrario de ger
 imagem mais antigas, incluindo o Gemini 2.5 Flash Image usado em `background.py`), entao
 vale deixar o proprio modelo desenhar a composicao inteira a partir do frame de referencia.
 
-Sem `GEMINI_API_KEY`, sem o SDK, sem headline, ou com a chamada falhando (quota, timeout,
-modelo em alta demanda), `generate()` devolve None: quem chamar (`ThumbnailComposer`) cai
-pro pipeline antigo em camadas, que continua existindo como rede de seguranca.
+Decisao do projeto: SEM fallback silencioso. Sem `GEMINI_API_KEY`, sem o SDK, sem
+headline, ou com a chamada falhando (quota, timeout, modelo em alta demanda),
+`generate()` levanta `ThumbnailError` - uma thumbnail errada saindo sem aviso e pior
+que a etapa falhar visivelmente e o clipe ficar marcado como falho (ver `ClipStageError`
+em `clipador.pipeline`, que ja isola essa falha sem derrubar os outros clipes).
 """
 
 from __future__ import annotations
@@ -23,6 +25,8 @@ from typing import Any, Callable
 
 from dotenv import load_dotenv
 from PIL import Image
+
+from clipador.thumbnail.models import ThumbnailError
 
 from clipador import category as category_module
 from clipador.thumbnail.face_library import PoliticalFigure
@@ -188,7 +192,8 @@ def _first_image(response: Any) -> Image.Image | None:
 
 
 class AIThumbnailGenerator:
-    """Gera a thumbnail inteira via Gemini Image, com fallback (`None`) sempre garantido."""
+    """Gera a thumbnail inteira via Gemini Image. Sem fallback: indisponibilidade ou
+    falha da API levanta `ThumbnailError` (ver decisao no topo do modulo)."""
 
     def __init__(
         self,
@@ -283,46 +288,46 @@ class AIThumbnailGenerator:
         headline: str,
         aspect_ratio: str = DEFAULT_ASPECT_RATIO,
         subject: PoliticalFigure | None = None,
-    ) -> Image.Image | None:
+    ) -> Image.Image:
         headline = (headline or "").strip()
-        if not self.available or not headline:
-            return None
+        if not self.available:
+            raise ThumbnailError(
+                "GEMINI_API_KEY nao configurada (ou pacote google-genai ausente): nao da "
+                "pra gerar thumbnail."
+            )
+        if not headline:
+            raise ThumbnailError("Headline vazia: nao da pra gerar a thumbnail via IA sem ela.")
 
+        from google.genai import types
+
+        config = types.GenerateContentConfig(
+            image_config=types.ImageConfig(aspect_ratio=aspect_ratio)
+        )
+        reference_dir = subject.reference_dir if subject is not None else self.face_reference_dir
+        reference_person = subject.display_name if subject is not None else self.face_reference_person
+        reference_images = self._load_face_references(reference_dir)
+        face_reference_instruction = (
+            FACE_REFERENCE_INSTRUCTION_TEMPLATE.format(
+                count=len(reference_images), person_name=reference_person
+            )
+            if reference_images
+            else ""
+        )
+        prompt = self.prompt_template.format(
+            headline=headline.upper(),
+            aspect_ratio=aspect_ratio,
+            text_lines_instruction=_text_lines_instruction(aspect_ratio),
+            face_reference_instruction=face_reference_instruction,
+        )
         try:
-            from google.genai import types
-
-            config = types.GenerateContentConfig(
-                image_config=types.ImageConfig(aspect_ratio=aspect_ratio)
-            )
-            reference_dir = subject.reference_dir if subject is not None else self.face_reference_dir
-            reference_person = subject.display_name if subject is not None else self.face_reference_person
-            reference_images = self._load_face_references(reference_dir)
-            face_reference_instruction = (
-                FACE_REFERENCE_INSTRUCTION_TEMPLATE.format(
-                    count=len(reference_images), person_name=reference_person
-                )
-                if reference_images
-                else ""
-            )
-            prompt = self.prompt_template.format(
-                headline=headline.upper(),
-                aspect_ratio=aspect_ratio,
-                text_lines_instruction=_text_lines_instruction(aspect_ratio),
-                face_reference_instruction=face_reference_instruction,
-            )
             chat = self.client.chats.create(model=self.model, config=config)
             response = chat.send_message([prompt, frame, *reference_images])
-            image = _first_image(response)
-            if image is None:
-                raise ValueError("resposta do Gemini sem imagem")
-            return image.convert("RGB")
         except Exception as exc:
-            logger.warning(
-                "Geracao completa da thumbnail via Gemini falhou (%s); composicao em "
-                "camadas sera usada no lugar.",
-                exc,
-            )
-            return None
+            raise ThumbnailError(f"Chamada ao Gemini falhou: {exc}") from exc
+        image = _first_image(response)
+        if image is None:
+            raise ThumbnailError("Resposta do Gemini sem imagem: nao da pra gerar a thumbnail.")
+        return image.convert("RGB")
 
 
 @dataclass(frozen=True)

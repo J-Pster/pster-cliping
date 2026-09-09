@@ -28,15 +28,18 @@ from pathlib import Path
 from typing import Any
 
 from clipador import category as category_module
+from clipador.export.eleitoral import render_disclaimer_image
 from clipador.export.models import ClipOutput
 from clipador.export.outro_appender import OutroImageAppender
 from clipador.export.periodic_flash import PeriodicImageFlasher
 from clipador.export.review import ReviewQueue
 from clipador.export.thumbnail_frame import ThumbnailFramePrepender
+from clipador.export.watermark import WatermarkOverlay
 from clipador.export.writer import ExportWriter
 from clipador.kb.knowledge import KnowledgeBase
 from clipador.metadata.generator import generate_metadata
 from clipador.pipeline import ClipFailure, ClipStageError, _run, clip_excerpt, slugify_title
+from clipador.progress import OnProgress, noop_progress
 from clipador.reframe.faces import MediaPipeFaceDetector
 from clipador.select.models import SHORT_FORMAT, ClipCandidate
 from clipador.thumbnail.ai_thumbnail import build_thumbnail_generator
@@ -132,6 +135,8 @@ def _process_video(
     writer: ExportWriter,
     review_queue: ReviewQueue,
     category: str = category_module.DEFAULT_CATEGORY,
+    eleitoral_image_path: Path | None = None,
+    eleitoral_overlay: WatermarkOverlay | None = None,
 ) -> ClipOutput:
     transcription = _run("transcribe", transcriber.transcribe, video_path)
 
@@ -163,8 +168,22 @@ def _process_video(
     with_frame = stage_dir / "with_thumbnail_frame.mp4"
     _run("thumbnail_frame", frame_prepender.prepend, with_flashes, thumbnail_path, with_frame)
 
+    # Tarja de propaganda eleitoral entra depois de prender a capa e ANTES do outro
+    # final: ela precisa cobrir o video de conteudo (incluindo a previa/capa, que aqui,
+    # diferente do pipeline principal, ja faz parte do proprio arquivo de video), mas nao
+    # o quadro estatico de encerramento, que e identidade do canal, nao conteudo.
+    current = with_frame
+    if eleitoral_image_path is not None and eleitoral_overlay is not None:
+        current = _run(
+            "eleitoral",
+            eleitoral_overlay.apply,
+            current,
+            eleitoral_image_path,
+            stage_dir / "eleitoral.mp4",
+        )
+
     final_video = stage_dir / "with_outro.mp4"
-    _run("outro", outro_appender.append, with_frame, outro_image, final_video)
+    _run("outro", outro_appender.append, current, outro_image, final_video)
 
     output = _run(
         "export",
@@ -203,6 +222,9 @@ def rebrand_batch(
     writer: ExportWriter | None = None,
     review_queue: ReviewQueue | None = None,
     category: str = category_module.DEFAULT_CATEGORY,
+    eleitoral_text: str = "",
+    eleitoral_overlay: WatermarkOverlay | None = None,
+    on_progress: OnProgress = noop_progress,
 ) -> RebrandBatchResult:
     category_module.validate_category(category)
     batch_folder = batch_name or f"rebrand_{slugify_title(input_dir.name) or input_dir.name}"
@@ -210,6 +232,9 @@ def rebrand_batch(
     videos = discover_videos(input_dir)
     if limit is not None:
         videos = videos[:limit]
+    on_progress(
+        {"event": "plan", "total": len(videos), "message": f"{len(videos)} video(s) no lote"}
+    )
 
     transcriber = transcriber or FasterWhisperTranscriber()
     writer = writer or ExportWriter(output_root)
@@ -221,12 +246,40 @@ def rebrand_batch(
     frame_prepender = frame_prepender or ThumbnailFramePrepender()
     outro_appender = outro_appender or OutroImageAppender(duration_seconds=outro_duration_seconds)
 
-    result = RebrandBatchResult(batch_folder=batch_folder)
+    # So constroi o overlay (e renderiza o PNG) quando a tarja esta de fato ligada -
+    # rebrand nao tem campo de feature-flag tipo o `watermark: WatermarkImages | None`
+    # do pipeline principal, entao a checagem do texto e o proprio flag aqui. O overlay
+    # e injetavel (mesmo padrao de flasher/frame_prepender) pra suite de testes conseguir
+    # trocar o `runner`/`frame_sampler` por fakes sem chamar ffmpeg de verdade.
+    eleitoral_image_path: Path | None = None
+    if eleitoral_text.strip():
+        eleitoral_overlay = eleitoral_overlay or WatermarkOverlay()
+        eleitoral_image_path = render_disclaimer_image(
+            eleitoral_text,
+            work_dir / "eleitoral.png",
+            frame_width=1080,
+            frame_height=1920,
+        )
+    else:
+        eleitoral_overlay = None
 
-    for video_path in videos:
+    result = RebrandBatchResult(batch_folder=batch_folder)
+    total_videos = len(videos)
+
+    for position, video_path in enumerate(videos, start=1):
         clip_id = slugify_title(video_path.stem) or video_path.stem
         stage_dir = work_dir / batch_folder / clip_id
         stage_dir.mkdir(parents=True, exist_ok=True)
+        on_progress(
+            {
+                "event": "clip_start",
+                "clip_id": clip_id,
+                "format": SHORT_FORMAT,
+                "index": position,
+                "total": total_videos,
+                "message": f"Rebrandeando {position}/{total_videos}: {video_path.name}",
+            }
+        )
         try:
             output = _process_video(
                 video_path,
@@ -244,10 +297,35 @@ def rebrand_batch(
                 writer,
                 review_queue,
                 category,
+                eleitoral_image_path,
+                eleitoral_overlay,
             )
         except ClipStageError as exc:
             result.failures.append(ClipFailure(clip_id, exc.stage, exc.message))
+            on_progress(
+                {
+                    "event": "clip_failed",
+                    "clip_id": clip_id,
+                    "format": SHORT_FORMAT,
+                    "stage": exc.stage,
+                    "message": exc.message,
+                    "index": position,
+                    "total": total_videos,
+                }
+            )
         else:
             result.clips.append(output)
+            on_progress(
+                {
+                    "event": "clip_done",
+                    "clip_id": clip_id,
+                    "format": SHORT_FORMAT,
+                    "directory": str(output.directory),
+                    "status": output.review_status,
+                    "index": position,
+                    "total": total_videos,
+                    "message": f"Rebrand {position}/{total_videos} concluido",
+                }
+            )
 
     return result

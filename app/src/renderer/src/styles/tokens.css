@@ -1,0 +1,90 @@
+/*
+ * Design tokens, traduzidos de DESIGN.md (MMCC: Minimalist Modern Compact Clean).
+ * Fonte da verdade original: bidchex-frontend/src/styles/_variables.scss e
+ * _themes.scss. Este app so tem tema claro, sem alternancia.
+ */
+
+:root {
+  /* Superficies e texto */
+  --bg: #fafafa;
+  --panel: #ffffff;
+  --surface: #ffffff;
+  --bg-muted: #f7f7f7;
+  --surface-muted: #f1f5f9;
+  --panel-muted: #f1f5f9;
+  --color-surface-secondary: #f5f5f5;
+  --color-surface-secondary-hover: #ebebeb;
+  --border: #b8b8b8;
+  --control-border: #b8b8b8;
+  --border-subtle: rgba(0, 0, 0, 0.22);
+  --text: #1a1a1a;
+  --text-muted: #666666;
+  --text-fine: #999999;
+  --color-text-secondary: #6b7280;
+
+  /* Accent neutro e interacao */
+  --accent: #333333;
+  --accent-hover: #000000;
+  --accent-rgb: 51, 51, 51;
+  --text-on-accent: #ffffff;
+  --hover-bg: rgba(0, 0, 0, 0.06);
+
+  /* Elevacao */
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.15);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
+
+  /* Funcional */
+  --warning-bg: #fef3c7;
+  --warning-border: #f59e0b;
+  --info-bg: #eff6ff;
+  --info-border: #bfdbfe;
+  --info-text: #1d4ed8;
+  --skeleton-from: #f0f0f0;
+  --skeleton-via: #e0e0e0;
+  --skeleton-to: #f0f0f0;
+
+  /* Tipografia (theme-agnostico) */
+  --font-family-base: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    sans-serif;
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-base: 16px;
+  --font-size-lg: 20px;
+  --font-size-xl: 22px;
+  --font-size-2xl: 44px;
+  --font-size-3xl: 54px;
+  --font-size-4xl: 56px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Espacamento (base 4px) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-15: 60px;
+  --space-20: 80px;
+
+  /* Raio de borda */
+  --radius-xs: 4px;
+  --radius-compact: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-full: 999px;
+
+  /* Transicoes */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.3s ease;
+
+  /* Chrome fixo */
+  --header-height: 64px;
+  --sidebar-width-collapsed: 56px;
+  --sidebar-width-expanded: 180px;
+}

@@ -1,0 +1,66 @@
+appId: com.pster.clipador
+productName: Clipador
+directories:
+  output: dist
+  buildResources: build
+
+# "store" (sem compressao) em vez do default "normal": o payload e majoritariamente
+# binario ja denso (DLLs do torch, .pyd, ffmpeg.exe), que quase nao comprime -
+# LZMA gastava minutos de CPU só pra economizar pouco espaço. Instalador fica maior
+# pra baixar, mas instala em segundos em vez de minutos.
+compression: store
+
+# out/ vem do `electron-vite build`; package.json define main/dependencies. O
+# resto (node_modules de producao, ex: electron-updater) o electron-builder inclui
+# sozinho pelo default dele, sem precisar listar aqui.
+files:
+  - out/**
+  - node_modules/**
+  - package.json
+
+# Python + engine + ffmpeg embutidos, gerados por `npm run runtime:all` ANTES do
+# build (scripts/build-python-runtime.ps1, scripts/fetch-ffmpeg.ps1). Ficam em
+# resources/<nome> dentro do app instalado; ver src/main/runtime-paths.ts pra como
+# o processo main os localiza (process.resourcesPath).
+extraResources:
+  - from: resources/engine
+    to: engine
+  - from: resources/python
+    to: python
+  - from: resources/ffmpeg
+    to: ffmpeg
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  artifactName: ${productName}-Setup-${version}.${ext}
+
+nsis:
+  artifactName: ${productName}-Setup-${version}.${ext}
+  # oneClick:false mostra o assistente padrao do NSIS (com barra de progresso
+  # arquivo-por-arquivo) em vez da tela "Installing, please wait..." sem feedback
+  # nenhum - o runtime embutido tem ~20 mil arquivos, a instalacao leva 1-3 min
+  # (Windows Defender escaneia cada arquivo novo), entao feedback real importa.
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  deleteAppDataOnUninstall: false
+
+# Alem do instalador NSIS, um .exe portatil (sem instalar nada no sistema, sem
+# registro, sem atalho) - mesmo padrao do Hydra Launcher (github.com/hydralauncher/hydra).
+# util pra testar rapido ou rodar de um pendrive; a extracao dos ~20 mil arquivos do
+# runtime ainda acontece (mesmo custo de Defender), so na PRIMEIRA execucao.
+portable:
+  artifactName: ${productName}-Portable-${version}.${ext}
+
+# electron-updater le isto (embutido como app-update.yml no build) pra checar
+# releases publicadas neste repo no GitHub.
+publish:
+  provider: github
+  owner: J-Pster
+  repo: pster-cliping

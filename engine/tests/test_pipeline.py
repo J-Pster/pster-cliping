@@ -7,6 +7,7 @@ e produz a estrutura de saida esperada.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -267,21 +268,34 @@ TWO_FORMAT_CANDIDATES = [
 ]
 
 
-def run_happy_path(tmp_path, thumbnail_builder=None):
+def run_happy_path(
+    tmp_path,
+    thumbnail_builder=None,
+    on_progress=None,
+    eleitoral_text=None,
+    generate_thumbnail=None,
+):
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video de origem")
     ffmpeg = FfmpegSpy()
     components, scene_detector, frame_saver = build_components(tmp_path, ffmpeg, thumbnail_builder)
     transcriber = FakeTranscriber(build_transcription())
 
+    extra = {} if on_progress is None else {"on_progress": on_progress}
+    config = build_config(tmp_path)
+    if eleitoral_text is not None:
+        config = replace(config, eleitoral_enabled=True, eleitoral_text=eleitoral_text)
+    if generate_thumbnail is not None:
+        config = replace(config, generate_thumbnail=generate_thumbnail)
     result = run_pipeline(
         source,
         build_kb(),
-        build_config(tmp_path),
+        config,
         transcriber=transcriber,
         selector_client=selector_client(TWO_FORMAT_CANDIDATES),
         metadata_client=metadata_client(),
         **components,
+        **extra,
     )
     return result, ffmpeg, scene_detector, frame_saver, transcriber
 
@@ -298,6 +312,71 @@ def test_pipeline_produz_um_clipe_de_cada_formato_completo(tmp_path):
         assert clip.thumbnail_path.is_file()
         assert clip.metadata_path.is_file()
         assert (clip.directory / "metadata.json").is_file()
+
+
+def test_pipeline_emite_progresso_com_plano_e_um_evento_por_clipe(tmp_path):
+    events = []
+    result, _, _, _, _ = run_happy_path(tmp_path, on_progress=events.append)
+
+    assert result.failures == []
+    plan_events = [event for event in events if event["event"] == "plan"]
+    assert plan_events == [
+        {"event": "plan", "total": 2, "message": "2 clipe(s) planejado(s)"}
+    ]
+
+    done_events = [event for event in events if event["event"] == "clip_done"]
+    assert [event["format"] for event in done_events] == [SHORT_FORMAT, LONG_FORMAT]
+    assert [event["index"] for event in done_events] == [1, 2]
+    assert all(event["total"] == 2 for event in done_events)
+    assert all(event["status"] == REVIEW_PENDING for event in done_events)
+
+    start_events = [event for event in events if event["event"] == "clip_start"]
+    assert len(start_events) == 2
+    # Cada clipe inicia antes de concluir, na mesma posicao.
+    assert [event["index"] for event in start_events] == [1, 2]
+
+
+def test_pipeline_emite_clip_failed_sem_derrubar_os_demais(tmp_path):
+    class AlwaysExplodingThumbnailBuilder:
+        def build(
+            self, video_path, output_path, candidates_dir, start=None, end=None, headline="", subject=None
+        ):
+            raise ThumbnailError("nenhum frame candidato extraido")
+
+    events = []
+    result, _, _, _, _ = run_happy_path(
+        tmp_path, thumbnail_builder=AlwaysExplodingThumbnailBuilder(), on_progress=events.append
+    )
+
+    assert result.clips == []
+    assert len(result.failures) == 2
+    failed_events = [event for event in events if event["event"] == "clip_failed"]
+    assert len(failed_events) == 2
+    assert all(event["stage"] == "thumbnail" for event in failed_events)
+    assert [event["index"] for event in failed_events] == [1, 2]
+
+
+def test_pipeline_generate_thumbnail_desligado_pula_a_etapa_por_completo(tmp_path):
+    """Com generate_thumbnail=False, thumbnail_builder.build NUNCA e chamado (o builder
+    usado aqui explode se for) e todo clipe sai sem nenhuma thumbnail."""
+
+    class AlwaysExplodingThumbnailBuilder:
+        def build(
+            self, video_path, output_path, candidates_dir, start=None, end=None, headline="", subject=None
+        ):
+            raise ThumbnailError("nao deveria ter sido chamado")
+
+    result, ffmpeg, _, _, _ = run_happy_path(
+        tmp_path,
+        thumbnail_builder=AlwaysExplodingThumbnailBuilder(),
+        generate_thumbnail=False,
+    )
+
+    assert result.failures == []
+    assert len(result.clips) == 2
+    assert all(clip.thumbnail_path is None for clip in result.clips)
+    # Formato curto tambem nao prende capa como 1o frame quando nao ha thumbnail nenhuma.
+    assert ffmpeg.commands_with("with_thumbnail_frame.mp4") == []
 
 
 def run_with_watermark(tmp_path):
@@ -354,6 +433,22 @@ def test_pipeline_sem_marca_dagua_nao_roda_a_etapa_de_overlay(tmp_path):
     _, ffmpeg, _, _, _ = run_happy_path(tmp_path)
 
     assert [c for c in ffmpeg.commands if c[-1].endswith("watermarked.mp4")] == []
+
+
+def test_pipeline_estampa_a_tarja_eleitoral_no_curto_e_no_longo(tmp_path):
+    """A tarja de propaganda eleitoral vale para os dois formatos: o happy path gera um
+    clipe curto e um longo, os dois devem ganhar a etapa `eleitoral`."""
+    result, ffmpeg, _, _, _ = run_happy_path(tmp_path, eleitoral_text="PROPAGANDA ELEITORAL")
+
+    assert result.failures == []
+    comandos = [c for c in ffmpeg.commands if c[-1].endswith("eleitoral.mp4")]
+    assert len(comandos) == 2
+
+
+def test_pipeline_sem_texto_eleitoral_nao_roda_a_etapa(tmp_path):
+    _, ffmpeg, _, _, _ = run_happy_path(tmp_path)
+
+    assert [c for c in ffmpeg.commands if c[-1].endswith("eleitoral.mp4")] == []
 
 
 def test_pipeline_nao_gera_thumbnail_do_video_principal_por_padrao(tmp_path):

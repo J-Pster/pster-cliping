@@ -12,6 +12,7 @@ from clipador.export.watermark import WatermarkError, WatermarkImages
 from clipador.export.writer import DEFAULT_SOCIAL_HANDLE
 from clipador.kb.knowledge import load_knowledge_base
 from clipador.pipeline import PipelineConfig, run_pipeline
+from clipador.progress import print_progress
 from clipador.subtitles.fonts import DEFAULT_FONTS_DIR
 from clipador.subtitles.presets import DEFAULT_PRESET, PRESET_NAMES, PRESETS
 from clipador.transcribe.factory import (
@@ -90,6 +91,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="PNG com transparencia da marca d'agua do formato LONGO (16:9), mesmas regras",
     )
     parser.add_argument(
+        "--eleitoral-text",
+        default=None,
+        help="Texto de propaganda eleitoral queimado numa tarja pequena e rotacionada na "
+        "lateral de TODO clipe gerado, curto e longo. Sem a flag, nenhuma tarja e aplicada.",
+    )
+    parser.add_argument(
         "--handle",
         default=DEFAULT_SOCIAL_HANDLE,
         help="@ do canal escrito no ready-to-post.txt, entre a descricao e as hashtags. "
@@ -165,6 +172,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Salva o frame escolhido cru, sem fundo tratado, recorte, headline nem destaque",
     )
     parser.add_argument(
+        "--generate-thumbnails",
+        choices=("on", "off"),
+        default="on",
+        help="Gera (on, padrao) ou pula por completo (off) a thumbnail de CADA clipe, "
+        "curto e longo. Com 'off', o formato curto tambem nao prende nenhuma capa como "
+        "1o frame do video. Nao mexe em --generate-main-thumbnail (thumbnail do video "
+        "principal inteiro), que e um toggle separado.",
+    )
+    parser.add_argument(
         "--generate-main-thumbnail",
         action="store_true",
         default=False,
@@ -225,10 +241,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         min_short_clips=args.min_short_clips,
         min_long_clips=args.min_long_clips,
         enable_thumbnail_composition=args.enable_thumbnail_composition,
+        generate_thumbnail=args.generate_thumbnails == "on",
         cookies_from_browser=args.cookies_from_browser,
         face_model_path=args.face_model_path,
         category=args.category,
         generate_main_thumbnail=args.generate_main_thumbnail,
+        eleitoral_enabled=bool(args.eleitoral_text),
+        eleitoral_text=args.eleitoral_text or "",
         social_handle=args.handle,
         subtitle_preset=args.subtitle_preset,
         subtitle_fonts_dir=args.fonts_dir,
@@ -244,7 +263,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         ),
     )
 
-    result = run_pipeline(args.input, kb, config)
+    result = run_pipeline(args.input, kb, config, on_progress=print_progress)
 
     for clip in result.clips:
         print(f"{clip.clip_id} [{clip.format}] -> {clip.directory} ({clip.review_status})")

@@ -1,10 +1,12 @@
 import logging
 
+import pytest
 from PIL import Image
 
 from clipador.reframe.models import FaceBox
 from clipador.thumbnail import ThumbnailComposer, ThumbnailStyle
 from clipador.thumbnail.face_library import PoliticalFigure
+from clipador.thumbnail.models import ThumbnailError
 
 SIZE = (320, 180)
 ACCENT = (255, 0, 255)
@@ -44,9 +46,11 @@ class FakeBackgroundEditor:
 
 
 class FakeAIGenerator:
-    """Por padrao devolve None (simula IA indisponivel/sem imagem), forcando o
-    fallback pro pipeline em camadas - e o que a maioria dos testes deste arquivo
-    quer exercitar. Testes que querem o caminho de IA injetam `image=` explicito."""
+    """Espelha o contrato real de `AIThumbnailGenerator.generate`: nunca devolve None,
+    ou devolve a imagem ou levanta. Por padrao (sem `image=`) simula indisponibilidade
+    levantando `ThumbnailError`, como o real faz sem GEMINI_API_KEY. Testes de
+    `compose_layered()` nem chegam a usar isto; testes do caminho de IA injetam
+    `image=` explicito."""
 
     def __init__(self, image=None, error=None):
         self._image = image
@@ -59,6 +63,8 @@ class FakeAIGenerator:
         self.last_subject = subject
         if self._error is not None:
             raise self._error
+        if self._image is None:
+            raise ThumbnailError("simulado: IA indisponivel/sem imagem")
         return self._image
 
 
@@ -89,68 +95,68 @@ def meio_vertical() -> int:
     return SIZE[1] // 2
 
 
-def test_compose_monta_imagem_final_do_tamanho_do_frame(tmp_path):
+def test_compose_layered_monta_imagem_final_do_tamanho_do_frame(tmp_path):
     person = Image.new("RGBA", SIZE, color=(200, 10, 10, 255))
     composer = build_composer(cutout=FakeCutout(person=person))
 
-    result = composer.compose(write_frame(tmp_path), "OLHA ISSO")
+    result = composer.compose_layered(write_frame(tmp_path), "OLHA ISSO")
 
     assert result.size == SIZE
     assert result.mode == "RGB"
 
 
-def test_compose_cola_o_recorte_da_pessoa_por_cima_do_fundo_tratado(tmp_path):
+def test_compose_layered_cola_o_recorte_da_pessoa_por_cima_do_fundo_tratado(tmp_path):
     person = Image.new("RGBA", SIZE, color=(200, 10, 10, 255))
     cutout = FakeCutout(person=person)
     composer = build_composer(cutout=cutout, faces=())
 
-    result = composer.compose(write_frame(tmp_path), "")
+    result = composer.compose_layered(write_frame(tmp_path), "")
 
     assert cutout.calls
     assert result.getpixel((0, 0)) == (200, 10, 10)
 
 
-def test_compose_sem_recorte_disponivel_ainda_produz_imagem_valida(tmp_path):
+def test_compose_layered_sem_recorte_disponivel_ainda_produz_imagem_valida(tmp_path):
     composer = build_composer(cutout=FakeCutout(person=None), faces=())
 
-    result = composer.compose(write_frame(tmp_path), "")
+    result = composer.compose_layered(write_frame(tmp_path), "")
 
     # Fundo tratado do FakeBackgroundEditor, sem nenhuma colagem por cima.
     assert result.size == SIZE
     assert result.getpixel((0, 0)) == (30, 30, 30)
 
 
-def test_compose_sem_rosto_detectado_nao_desenha_seta(tmp_path):
-    com_rosto = build_composer(faces=(FACE,)).compose(write_frame(tmp_path), "")
-    sem_rosto = build_composer(faces=()).compose(write_frame(tmp_path), "")
+def test_compose_layered_sem_rosto_detectado_nao_desenha_seta(tmp_path):
+    com_rosto = build_composer(faces=(FACE,)).compose_layered(write_frame(tmp_path), "")
+    sem_rosto = build_composer(faces=()).compose_layered(write_frame(tmp_path), "")
 
     assert accent_pixels(com_rosto) > 0
     assert accent_pixels(sem_rosto) == 0
 
 
-def test_compose_com_highlight_none_nao_desenha_destaque(tmp_path):
+def test_compose_layered_com_highlight_none_nao_desenha_destaque(tmp_path):
     composer = build_composer(faces=(FACE,), highlight=None)
 
-    result = composer.compose(write_frame(tmp_path), "")
+    result = composer.compose_layered(write_frame(tmp_path), "")
 
     assert accent_pixels(result) == 0
 
 
-def test_compose_escreve_a_headline_por_cima(tmp_path):
-    sem_texto = build_composer(faces=()).compose(write_frame(tmp_path), "")
-    com_texto = build_composer(faces=()).compose(write_frame(tmp_path), "sera mesmo")
+def test_compose_layered_escreve_a_headline_por_cima(tmp_path):
+    sem_texto = build_composer(faces=()).compose_layered(write_frame(tmp_path), "")
+    com_texto = build_composer(faces=()).compose_layered(write_frame(tmp_path), "sera mesmo")
 
     assert list(com_texto.get_flattened_data()) != list(sem_texto.get_flattened_data())
 
 
-def test_compose_posiciona_a_headline_no_lado_com_mais_espaco_livre(tmp_path):
+def test_compose_layered_posiciona_a_headline_no_lado_com_mais_espaco_livre(tmp_path):
     """Rosto no topo empurra a manchete pra base, e vice-versa: o texto nunca cobre o rosto."""
     face_no_topo = FaceBox(x=120.0, y=10.0, width=60.0, height=50.0, confidence=0.9)
     face_na_base = FaceBox(x=120.0, y=120.0, width=60.0, height=50.0, confidence=0.9)
-    topo = build_composer(faces=(face_no_topo,), highlight=None).compose(
+    topo = build_composer(faces=(face_no_topo,), highlight=None).compose_layered(
         write_frame(tmp_path), "OPA"
     )
-    base = build_composer(faces=(face_na_base,), highlight=None).compose(
+    base = build_composer(faces=(face_na_base,), highlight=None).compose_layered(
         write_frame(tmp_path), "OPA"
     )
 
@@ -167,14 +173,14 @@ def test_compose_posiciona_a_headline_no_lado_com_mais_espaco_livre(tmp_path):
     assert min(linhas_com_texto(base)) < meio_vertical()
 
 
-def test_compose_nao_propaga_erro_de_sub_etapa_e_ainda_devolve_imagem(tmp_path, caplog):
+def test_compose_layered_nao_propaga_erro_de_sub_etapa_e_ainda_devolve_imagem(tmp_path, caplog):
     composer = build_composer(
         cutout=FakeCutout(error=RuntimeError("recorte explodiu")),
         background=FakeBackgroundEditor(error=RuntimeError("fundo explodiu")),
     )
 
     with caplog.at_level(logging.WARNING):
-        result = composer.compose(write_frame(tmp_path), "GANCHO")
+        result = composer.compose_layered(write_frame(tmp_path), "GANCHO")
 
     assert result.size == SIZE
     mensagens = " ".join(record.getMessage() for record in caplog.records)
@@ -220,26 +226,24 @@ def test_compose_sem_subject_repassa_none(tmp_path):
     assert ai_generator.last_subject is None
 
 
-def test_compose_ai_generator_indisponivel_cai_pro_pipeline_em_camadas(tmp_path):
+def test_compose_ai_generator_indisponivel_levanta_erro_sem_fallback(tmp_path):
+    """Decisao do projeto: sem Gemini disponivel, `compose()` nao degrada em silencio
+    pra composicao em camadas, levanta erro (ver topo do modulo)."""
     composer = build_composer(ai_generator=FakeAIGenerator(image=None), faces=())
 
-    result = composer.compose(write_frame(tmp_path), "", aspect_ratio="9:16")
+    with pytest.raises(ThumbnailError):
+        composer.compose(write_frame(tmp_path), "", aspect_ratio="9:16")
 
-    assert result.size == SIZE
 
-
-def test_compose_ai_generator_que_falha_cai_pro_pipeline_em_camadas(tmp_path, caplog):
+def test_compose_ai_generator_que_falha_levanta_erro_sem_fallback(tmp_path):
     ai_generator = FakeAIGenerator(error=RuntimeError("gemini explodiu"))
     composer = build_composer(ai_generator=ai_generator)
 
-    with caplog.at_level(logging.WARNING):
-        result = composer.compose(write_frame(tmp_path), "GANCHO")
-
-    assert result.size == SIZE
-    assert any("gemini explodiu" in record.getMessage() for record in caplog.records)
+    with pytest.raises(RuntimeError, match="gemini explodiu"):
+        composer.compose(write_frame(tmp_path), "GANCHO")
 
 
-def test_compose_com_face_detector_que_explode_segue_sem_rosto(tmp_path):
+def test_compose_layered_com_face_detector_que_explode_segue_sem_rosto(tmp_path):
     class ExplodingDetector:
         def detect_faces(self, frame):
             raise RuntimeError("modelo de rosto ausente")
@@ -252,7 +256,7 @@ def test_compose_com_face_detector_que_explode_segue_sem_rosto(tmp_path):
         ai_generator=FakeAIGenerator(),
     )
 
-    result = composer.compose(write_frame(tmp_path), "GANCHO")
+    result = composer.compose_layered(write_frame(tmp_path), "GANCHO")
 
     assert result.size == SIZE
     assert accent_pixels(result) == 0

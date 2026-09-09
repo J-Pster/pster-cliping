@@ -1,0 +1,384 @@
+/*
+ * Padroes especificos das telas de job (New Clip / Rebrand) e Settings, que nao
+ * tinham equivalente pronto em forms.css/layout.css/buttons.css: cabecalho de
+ * secao, console de log, lista de resultados, e o toggle de senha nos inputs
+ * de credencial. Segue os mesmos tokens do DESIGN.md.
+ */
+
+.lu-section-title {
+  font-size: 0.75rem;
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-4);
+}
+
+.lu-card + .lu-card {
+  margin-top: var(--space-5);
+}
+
+.lu-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* Input com botao de mostrar/esconder senha embutido */
+.lu-input-with-action {
+  position: relative;
+  max-width: 420px;
+}
+
+.lu-input-with-action .lu-control {
+  max-width: none;
+  padding-right: 40px;
+}
+
+.lu-input-with-action__toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: var(--radius-compact);
+}
+
+.lu-input-with-action__toggle:hover {
+  background: var(--hover-bg);
+  color: var(--text);
+}
+
+/* Fonte/pasta com botao Browse ao lado */
+.lu-field-with-browse {
+  display: flex;
+  gap: var(--space-2);
+  align-items: stretch;
+  max-width: 560px;
+}
+
+.lu-field-with-browse .lu-control {
+  max-width: none;
+  flex: 1;
+}
+
+/* Pills de escolha, layout em linha */
+.lu-choice-row {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.lu-choice-pill {
+  cursor: pointer;
+}
+
+.lu-choice-pill input[type='radio'] {
+  margin: 0;
+}
+
+/* Secao colapsavel de opcoes avancadas */
+.lu-collapsible {
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+}
+
+.lu-collapsible__trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: var(--font-weight-medium);
+}
+
+.lu-collapsible__trigger:hover {
+  color: var(--accent);
+}
+
+.lu-collapsible__chevron {
+  transition: transform var(--transition-fast);
+  color: var(--text-fine);
+  display: inline-flex;
+}
+
+.lu-collapsible--open .lu-collapsible__chevron {
+  transform: rotate(90deg);
+}
+
+.lu-collapsible__body {
+  margin-top: var(--space-4);
+}
+
+/* Banners inline de status (rodando / erro / sucesso) */
+.lu-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  margin-top: var(--space-4);
+}
+
+.lu-banner--info {
+  background: var(--info-bg);
+  color: var(--info-text);
+  border: 1px solid var(--info-border);
+}
+
+.lu-banner--error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.lu-banner--success {
+  background: rgba(34, 197, 94, 0.12);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.lu-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: lu-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes lu-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Console de log */
+.lu-log-console {
+  background: #1c1c1c;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  font-family: 'Consolas', 'SFMono-Regular', Menlo, Monaco, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #e4e4e4;
+  height: 260px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.lu-log-console__empty {
+  color: var(--text-fine);
+  font-family: inherit;
+}
+
+.lu-log-line--stderr {
+  color: #e08787;
+}
+
+.lu-log-line--exit {
+  color: var(--text-fine);
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Lista de resultados de clipes */
+.lu-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.lu-results-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.lu-results-row__info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lu-results-row__id {
+  font-size: 0.875rem;
+  font-weight: var(--font-weight-medium);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lu-results-row__meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lu-results-empty {
+  color: var(--text-fine);
+  font-size: 0.875rem;
+  padding: var(--space-4) 0;
+}
+
+/* Progresso do job (New Clip / Rebrand) */
+.lu-job-progress {
+  margin-top: var(--space-4);
+}
+
+.lu-progress-track {
+  width: 100%;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--border);
+  overflow: hidden;
+}
+
+.lu-progress-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.lu-job-progress__label {
+  margin: var(--space-2) 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.lu-job-progress__count {
+  font-weight: var(--font-weight-medium);
+  color: var(--text);
+}
+
+/* Base de conhecimento */
+.lu-kb-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.lu-kb-section-header .lu-section-title {
+  margin-bottom: var(--space-1);
+}
+
+.lu-kb-section-header .lu-hint {
+  margin: 0;
+}
+
+.lu-kb-doc-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lu-kb-doc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.lu-kb-doc-row__info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lu-kb-doc-row__title {
+  font-size: 0.875rem;
+  font-weight: var(--font-weight-medium);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lu-kb-doc-row__filename {
+  font-size: 0.75rem;
+  color: var(--text-fine);
+  font-family: 'Consolas', 'SFMono-Regular', Menlo, Monaco, monospace;
+}
+
+.lu-kb-doc-row__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.lu-kb-editor-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  z-index: 200;
+}
+
+.lu-kb-editor {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-5);
+  width: min(720px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.lu-kb-editor__textarea {
+  max-width: none;
+  width: 100%;
+  min-height: 280px;
+  font-family: 'Consolas', 'SFMono-Regular', Menlo, Monaco, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.lu-kb-editor__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

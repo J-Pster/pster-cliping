@@ -1,0 +1,41 @@
+{
+  "name": "clipador",
+  "productName": "Clipador",
+  "version": "1.0.0",
+  "private": true,
+  "author": "Joao Pster",
+  "description": "Aplicativo desktop (Electron) do Clipador: gera clipes a partir de um link do YouTube ou video local, com o engine Python embutido, sem precisar instalar Python.",
+  "type": "module",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "runtime:python": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-python-runtime.ps1",
+    "runtime:ffmpeg": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/fetch-ffmpeg.ps1",
+    "runtime:all": "npm run runtime:python && npm run runtime:ffmpeg",
+    "dist": "npm run build && npm run runtime:all && electron-builder --win --publish never",
+    "release": "npm run build && npm run runtime:all && electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "@fontsource/poppins": "^5.3.0",
+    "builder-util-runtime": "9.7.0",
+    "electron-updater": "^6.3.9",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.3",
+    "semver": "~7.7.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^44.2.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^5.0.0",
+    "typescript": "^5.7.3",
+    "vite": "^7.3.6"
+  }
+}

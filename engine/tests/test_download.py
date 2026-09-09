@@ -4,12 +4,9 @@ import pytest
 
 from clipador.download import (
     DownloadError,
-    MetadataError,
-    YouTubeMetadataFetcher,
     YtDlpDownloader,
     extract_chapters,
     load_info_json,
-    pick_thumbnail,
 )
 
 INFO_JSON = {
@@ -177,99 +174,3 @@ def test_download_url_nao_reconhecida_cai_pro_download_normal(tmp_path):
     assert holder["ydl"].calls == [("https://example.com/video", True)]
 
 
-class FakeRequest:
-    def __init__(self, response):
-        self._response = response
-
-    def execute(self):
-        return self._response
-
-
-class FakeVideos:
-    def __init__(self, response):
-        self._response = response
-        self.kwargs = None
-
-    def list(self, **kwargs):
-        self.kwargs = kwargs
-        return FakeRequest(self._response)
-
-
-class FakeYouTubeClient:
-    def __init__(self, response):
-        self._videos = FakeVideos(response)
-
-    def videos(self):
-        return self._videos
-
-
-API_RESPONSE = {
-    "items": [
-        {
-            "id": "T3ENScVymJQ",
-            "snippet": {
-                "title": "Live do Missao",
-                "description": "Descricao oficial",
-                "tags": ["missao", "renan santos"],
-                "channelTitle": "Missao",
-                "publishedAt": "2026-08-01T12:00:00Z",
-                "thumbnails": {
-                    "default": {"url": "http://img/default.jpg"},
-                    "maxres": {"url": "http://img/maxres.jpg"},
-                },
-            },
-            "contentDetails": {"duration": "PT47M12S"},
-            "status": {"license": "youtube"},
-        }
-    ]
-}
-
-
-def test_pick_thumbnail_prefere_maior_resolucao():
-    assert pick_thumbnail(API_RESPONSE["items"][0]["snippet"]["thumbnails"]) == "http://img/maxres.jpg"
-    assert pick_thumbnail({"medium": {"url": "http://img/m.jpg"}}) == "http://img/m.jpg"
-    assert pick_thumbnail(None) is None
-
-
-def test_metadata_fetcher_parseia_resposta_da_data_api():
-    client = FakeYouTubeClient(API_RESPONSE)
-    fetcher = YouTubeMetadataFetcher(client_factory=lambda: client)
-
-    metadata = fetcher.fetch("T3ENScVymJQ")
-
-    assert client.videos().kwargs == {"part": "snippet,contentDetails,status", "id": "T3ENScVymJQ"}
-    assert metadata.title == "Live do Missao"
-    assert metadata.description == "Descricao oficial"
-    assert metadata.tags == ("missao", "renan santos")
-    assert metadata.duration == "PT47M12S"
-    assert metadata.thumbnail_url == "http://img/maxres.jpg"
-    assert metadata.license == "youtube"
-
-
-def test_metadata_fetcher_nao_cria_client_ate_o_primeiro_fetch():
-    calls = []
-
-    def factory():
-        calls.append(1)
-        return FakeYouTubeClient(API_RESPONSE)
-
-    fetcher = YouTubeMetadataFetcher(client_factory=factory)
-    assert calls == []
-
-    fetcher.fetch("T3ENScVymJQ")
-    fetcher.fetch("T3ENScVymJQ")
-    assert calls == [1]
-
-
-def test_metadata_fetcher_usa_client_padrao_do_projeto(monkeypatch):
-    client = FakeYouTubeClient(API_RESPONSE)
-    monkeypatch.setattr("clipador.youtube.client.get_client", lambda: client)
-
-    assert YouTubeMetadataFetcher().fetch("T3ENScVymJQ").video_id == "T3ENScVymJQ"
-
-
-def test_metadata_fetcher_falha_sem_itens():
-    fetcher = YouTubeMetadataFetcher(client_factory=lambda: FakeYouTubeClient({"items": []}))
-
-    with pytest.raises(MetadataError):
-        fetcher.fetch("inexistente")

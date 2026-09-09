@@ -1,0 +1,203 @@
+/*
+ * Chrome do app shell, traduzido de DESIGN.md secoes 3, 4, 8 e 10.
+ * Adaptado de position:fixed (dashboard web com scroll de pagina) para flexbox
+ * de janela unica, ja que o Electron nao tem pagina rolavel por baixo do chrome.
+ */
+
+.lu-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.lu-shell__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Header */
+.lu-header {
+  flex-shrink: 0;
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  padding: 0 var(--space-5);
+  z-index: 100;
+}
+
+@media (max-width: 767px) {
+  .lu-header {
+    padding: 0 var(--space-4);
+  }
+}
+
+.lu-header__brand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.lu-header__name {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text);
+}
+
+.lu-header__meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.lu-header__author {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.lu-header__version {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-fine);
+}
+
+.lu-header__icon-btn {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--font-size-lg);
+  transition: all var(--transition-fast);
+}
+
+.lu-header__icon-btn:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.lu-header__icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Sidebar */
+.lu-sidebar {
+  flex-shrink: 0;
+  width: var(--sidebar-width-collapsed);
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: var(--space-2);
+  transition: width 0.2s ease;
+  overflow-y: auto;
+  scrollbar-width: none;
+  z-index: 50;
+}
+
+.lu-sidebar::-webkit-scrollbar {
+  display: none;
+}
+
+.lu-sidebar--expanded {
+  width: var(--sidebar-width-expanded);
+}
+
+.lu-sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.lu-sidebar__footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-2);
+}
+
+.lu-sidebar__btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  transition: all var(--transition-fast);
+  width: 100%;
+}
+
+.lu-sidebar__btn:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.lu-sidebar__btn--active {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.lu-sidebar__btn:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.lu-sidebar__glyph {
+  flex-shrink: 0;
+  width: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-lg);
+}
+
+.lu-sidebar__label {
+  font-size: 13px;
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Conteudo */
+.lu-content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: var(--space-6);
+}
+
+/* Cards */
+.lu-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+}
+
+/* Layout de formulario em duas colunas: form + aside "como funciona" */
+.lu-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 22rem);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .lu-two-col {
+    grid-template-columns: 1fr;
+  }
+}

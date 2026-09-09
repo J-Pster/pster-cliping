@@ -19,6 +19,7 @@ from clipador.export.outro_appender import OutroImageAppender
 from clipador.export.periodic_flash import PeriodicImageFlasher
 from clipador.export.review import ReviewQueue
 from clipador.export.thumbnail_frame import ThumbnailFramePrepender
+from clipador.export.watermark import WatermarkOverlay
 from clipador.export.writer import ExportWriter
 from clipador.kb.knowledge import KnowledgeBase, KnowledgeDocument
 from clipador.rebrand.service import RebrandBatchResult, discover_videos, rebrand_batch
@@ -239,6 +240,35 @@ def test_rebrand_batch_gera_uma_pasta_de_output_com_todos_os_clipes_do_lote(tmp_
         assert (clip.directory / "REVIEW_PENDING").is_file()
 
 
+def test_rebrand_batch_emite_progresso_com_plano_e_um_evento_por_video(tmp_path):
+    input_dir = make_input_dir(tmp_path, ["video1.mp4", "video2.mp4"])
+    ffmpeg = FfmpegSpy()
+    outro_image = build_outro_image(tmp_path)
+    components = build_components(tmp_path, ffmpeg)
+    events = []
+
+    result = rebrand_batch(
+        input_dir,
+        build_kb(),
+        output_root=tmp_path / "output",
+        work_dir=tmp_path / "work",
+        outro_image=outro_image,
+        transcriber=FakeTranscriber(),
+        metadata_client=metadata_client(),
+        on_progress=events.append,
+        **components,
+    )
+
+    assert result.failures == []
+    plan_events = [event for event in events if event["event"] == "plan"]
+    assert plan_events == [{"event": "plan", "total": 2, "message": "2 video(s) no lote"}]
+
+    done_events = [event for event in events if event["event"] == "clip_done"]
+    assert [event["clip_id"] for event in done_events] == ["video1", "video2"]
+    assert [event["index"] for event in done_events] == [1, 2]
+    assert all(event["total"] == 2 for event in done_events)
+
+
 def test_rebrand_batch_limit_processa_so_os_n_primeiros_em_ordem_alfabetica(tmp_path):
     input_dir = make_input_dir(tmp_path, ["video1.mp4", "video2.mp4", "video3.mp4"])
     ffmpeg = FfmpegSpy()
@@ -286,6 +316,50 @@ def test_rebrand_batch_isola_falha_de_um_video_sem_travar_os_outros(tmp_path):
     assert result.failures[0].clip_id == "video2"
     assert result.failures[0].stage == "transcribe"
     assert "falha simulada" in result.failures[0].message
+
+
+def test_rebrand_batch_estampa_a_tarja_eleitoral_quando_texto_e_passado(tmp_path):
+    input_dir = make_input_dir(tmp_path, ["video1.mp4"])
+    ffmpeg = FfmpegSpy()
+    outro_image = build_outro_image(tmp_path)
+    components = build_components(tmp_path, ffmpeg)
+
+    result = rebrand_batch(
+        input_dir,
+        build_kb(),
+        output_root=tmp_path / "output",
+        work_dir=tmp_path / "work",
+        outro_image=outro_image,
+        transcriber=FakeTranscriber(),
+        metadata_client=metadata_client(),
+        eleitoral_text="PROPAGANDA ELEITORAL",
+        eleitoral_overlay=WatermarkOverlay(frame_sampler=FakeFrameSampler(), runner=ffmpeg),
+        **components,
+    )
+
+    assert result.failures == []
+    comandos = [c for c in ffmpeg.commands if c[-1].endswith("eleitoral.mp4")]
+    assert len(comandos) == 1
+
+
+def test_rebrand_batch_sem_texto_eleitoral_nao_roda_a_etapa(tmp_path):
+    input_dir = make_input_dir(tmp_path, ["video1.mp4"])
+    ffmpeg = FfmpegSpy()
+    outro_image = build_outro_image(tmp_path)
+    components = build_components(tmp_path, ffmpeg)
+
+    rebrand_batch(
+        input_dir,
+        build_kb(),
+        output_root=tmp_path / "output",
+        work_dir=tmp_path / "work",
+        outro_image=outro_image,
+        transcriber=FakeTranscriber(),
+        metadata_client=metadata_client(),
+        **components,
+    )
+
+    assert [c for c in ffmpeg.commands if c[-1].endswith("eleitoral.mp4")] == []
 
 
 def test_rebrand_batch_roda_flash_periodico_entre_thumbnail_e_prepend(tmp_path):

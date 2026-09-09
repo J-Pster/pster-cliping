@@ -9,7 +9,6 @@ description = "CLI de geração automática de clipes de conteúdo político a p
 requires-python = ">=3.11"
 dependencies = [
     "anthropic",
-    "google-api-python-client",
     "yt-dlp",
     "python-dotenv",
     "pillow",
@@ -30,7 +29,7 @@ cloud-transcribe = [
     "elevenlabs",
 ]
 thumbnail-ai = [
-    "rembg",
+    "rembg[cpu]",
     "google-genai",
 ]
 publish = [

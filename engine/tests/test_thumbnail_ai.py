@@ -2,10 +2,12 @@ import io
 import logging
 from types import SimpleNamespace
 
+import pytest
 from PIL import Image
 
 from clipador.thumbnail.ai_thumbnail import AIThumbnailGenerator
 from clipador.thumbnail.face_library import PoliticalFigure
+from clipador.thumbnail.models import ThumbnailError
 
 
 def base_frame(color=(120, 120, 120)) -> Image.Image:
@@ -66,19 +68,21 @@ def test_available_true_com_client_factory_injetado(monkeypatch):
 # --- generate --------------------------------------------------------------------
 
 
-def test_generate_sem_headline_devolve_none_sem_chamar_a_api():
+def test_generate_sem_headline_levanta_erro_sem_chamar_a_api():
     client = FakeGeminiClient(response=response_with(base_frame()))
     generator = AIThumbnailGenerator(client_factory=lambda: client, face_reference_dir=None)
 
-    assert generator.generate(base_frame(), "") is None
+    with pytest.raises(ThumbnailError):
+        generator.generate(base_frame(), "")
     assert client._chat.messages == []
 
 
-def test_generate_indisponivel_devolve_none(monkeypatch):
+def test_generate_indisponivel_levanta_erro(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     generator = AIThumbnailGenerator(face_reference_dir=None)
 
-    assert generator.generate(base_frame(), "GANCHO") is None
+    with pytest.raises(ThumbnailError, match="GEMINI_API_KEY"):
+        generator.generate(base_frame(), "GANCHO")
 
 
 def test_generate_com_client_fake_devolve_a_imagem_gerada():
@@ -95,26 +99,21 @@ def test_generate_com_client_fake_devolve_a_imagem_gerada():
     assert "9:16" in prompt
 
 
-def test_generate_quando_a_api_falha_devolve_none(caplog):
+def test_generate_quando_a_api_falha_levanta_erro(caplog):
     client = FakeGeminiClient(error=RuntimeError("modelo em alta demanda"))
     generator = AIThumbnailGenerator(client_factory=lambda: client, face_reference_dir=None)
 
-    with caplog.at_level(logging.WARNING):
-        result = generator.generate(base_frame(), "GANCHO")
-
-    assert result is None
-    assert any("modelo em alta demanda" in record.getMessage() for record in caplog.records)
+    with pytest.raises(ThumbnailError, match="modelo em alta demanda"):
+        generator.generate(base_frame(), "GANCHO")
 
 
-def test_generate_quando_resposta_sem_imagem_devolve_none(caplog):
+def test_generate_quando_resposta_sem_imagem_levanta_erro(caplog):
     resposta_vazia = SimpleNamespace(candidates=[])
     client = FakeGeminiClient(response=resposta_vazia)
     generator = AIThumbnailGenerator(client_factory=lambda: client, face_reference_dir=None)
 
-    with caplog.at_level(logging.WARNING):
-        result = generator.generate(base_frame(), "GANCHO")
-
-    assert result is None
+    with pytest.raises(ThumbnailError, match="sem imagem"):
+        generator.generate(base_frame(), "GANCHO")
 
 
 # --- _load_face_references ------------------------------------------------------

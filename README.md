@@ -2,9 +2,7 @@
 
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue.svg)](./LICENSE)
 [![Python](https://img.shields.io/badge/python-%3E%3D3.11-3776AB?logo=python&logoColor=white)](engine/pyproject.toml)
-[![NestJS](https://img.shields.io/badge/backend-NestJS%2011-E0234E?logo=nestjs&logoColor=white)](backend/package.json)
-[![Angular](https://img.shields.io/badge/frontend-Angular%2021-DD0031?logo=angular&logoColor=white)](frontend/package.json)
-[![Electron](https://img.shields.io/badge/local--use-Electron-47848F?logo=electron&logoColor=white)](local-use/package.json)
+[![Electron](https://img.shields.io/badge/app-Electron-47848F?logo=electron&logoColor=white)](app/package.json)
 
 **Read this in [Portuguese (pt-BR)](README.pt-BR.md).**
 
@@ -22,13 +20,9 @@ clip always goes through an editorial checkpoint before going live.
 - [Repository structure](#repository-structure)
 - [Prerequisites](#prerequisites)
 - [Installation and first run](#installation-and-first-run)
-  - [1. Clone and configure environment variables](#1-clone-and-configure-environment-variables)
-  - [2. Start backend + database (Docker)](#2-start-backend--database-docker)
-  - [3. Run the frontend](#3-run-the-frontend)
-  - [4. Run the engine directly (CLI)](#4-run-the-engine-directly-cli)
-  - [5. Alternative without installing any code: the desktop GUI](#5-alternative-without-installing-any-code-the-desktop-gui)
+  - [1. Desktop app (recommended)](#1-desktop-app-recommended)
+  - [2. Run the engine directly (CLI)](#2-run-the-engine-directly-cli)
 - [Environment variables](#environment-variables)
-- [Usage: two ways to generate clips](#usage-two-ways-to-generate-clips)
 - [Useful commands per part of the project](#useful-commands-per-part-of-the-project)
 - [Additional documentation](#additional-documentation)
 - [License](#license)
@@ -57,12 +51,10 @@ delivers, for each clip:
   `ready-to-post.txt` per clip; re-running against the same video generates **new**
   clips, without repeating excerpts already used.
 
-The same engine (`engine/`) can be used in two ways:
-
-1. **As part of the full SaaS** (`backend` + `frontend`): web upload, job queue,
-   authentication, per-account clip history.
-2. **Standalone, via the desktop GUI** (`local-use/`) or **directly through the Python
-   CLI**, with no need to run backend or frontend, ideal for running on your own machine.
+The **desktop app** (`app/`) is the main way to use Clipador: download the installer
+from [Releases](https://github.com/J-Pster/pster-cliping/releases), install with one
+click, no Python or terminal required, updates itself. The same engine (`engine/`) can
+also be used **directly through the Python CLI**, useful for development or scripting.
 
 ## How it works (architecture)
 
@@ -73,26 +65,19 @@ YouTube / local file
 ┌───────────────────┐   transcription, excerpt selection, cutting, reframing,
 │  engine (Python)  │   subtitles, thumbnail, title/description/hashtags
 └─────────▲─────────┘   runs as a CLI, no server of its own
-          │  orchestrates via subprocess/queue (never reimplements the engine's logic)
+          │  spawns the engine as a subprocess (never reimplements its logic)
 ┌─────────┴─────────┐
-│ backend (NestJS)  │   jobs, users, clips, authentication (Cognito), billing
-└─────────▲─────────┘   Postgres via TypeORM
-          │  HTTP
-┌─────────┴─────────┐
-│ frontend (Angular) │  video upload, job progress, review/export
-└────────────────────┘
+│   app (Electron)   │  desktop UI: New Clip, Rebrand, Settings, KB editor
+└────────────────────┘  ships with Python + the engine + ffmpeg bundled in
 ```
 
 - **`engine/`** is the only part that knows how to transcribe, cut, reframe, subtitle,
-  and generate thumbnails/metadata. The backend treats it as a **black box**: none of
-  that logic is reimplemented in TypeScript.
-- **`backend/`** is thin on orchestration: it receives the request, calls the engine,
-  persists the result, and never decides on its own what counts as "a good cut" or "a
-  good thumbnail".
-- **`frontend/`** only talks to the backend over HTTP, never calls the engine directly.
-- **`local-use/`** is a parallel path that skips backend and frontend entirely: an
-  Electron window calls the local `engine` (the same Python code), meant for anyone who
-  wants to use Clipador without running a server.
+  and generate thumbnails/metadata. It runs standalone from the command line, and is
+  treated as a black box by `app/`: none of its logic is reimplemented in TypeScript.
+- **`app/`** is the Electron desktop app: the distributable product. Its installer
+  bundles a portable Python runtime with the engine's dependencies already installed
+  plus ffmpeg, so a non-technical person can install and use it with no Python, no
+  terminal, and no manual setup. Auto-updates itself via GitHub Releases.
 
 ## Repository structure
 
@@ -102,15 +87,11 @@ pster-cliping/
 │   ├── src/clipador/  # pipeline code, see engine/CLAUDE.md for the full layout
 │   ├── kb/             # knowledge base per content category
 │   └── README.md        # how to install and run the engine, full CLI guide
-├── backend/           # NestJS 11 API (TypeORM + PostgreSQL)
+├── app/               # Electron desktop app, the distributable product
+│   ├── scripts/        # build-python-runtime.ps1, fetch-ffmpeg.ps1 (embedded runtime)
 │   └── README.md
-├── frontend/          # Angular 21 SPA (standalone components)
-│   └── README.md
-├── local-use/         # Electron desktop GUI, local wrapper around the engine
-│   └── README.md
+├── .github/workflows/ # release.yml: builds and publishes the installer on a version tag
 ├── .docs/decisions/   # technical decision records with the evidence behind them
-├── docker-compose.yml # Postgres + backend, local dev
-├── DESIGN.md          # design system used by the frontend
 └── LICENSE            # PolyForm Noncommercial 1.0.0
 ```
 
@@ -122,69 +103,31 @@ the entry point; for deep detail on any part, go straight to its README/CLAUDE.m
 
 | Tool | What for | Required for |
 | --- | --- | --- |
-| **Docker** and **Docker Compose** | starts Postgres + backend in dev | using the full SaaS (backend/frontend) |
-| **Node.js 24** and **npm** | backend (NestJS) and frontend (Angular) | backend/frontend/local-use |
-| **Python >= 3.11** | runs the engine | any clip generation (SaaS, CLI, or GUI) |
-| **ffmpeg** on PATH, built with **libass** | cutting, reframing, subtitle burn-in | engine |
-| **AWS CLI configured (SSO)** | Cognito/Secrets Manager in dev | backend (real authentication, no local fallback) |
+| Nothing | just install and run the app | the desktop app (`.exe` from Releases) |
+| **Python >= 3.11** | runs the engine | running the CLI directly, or `app/` in dev mode |
+| **ffmpeg** on PATH, built with **libass** | cutting, reframing, subtitle burn-in | engine (CLI/dev only; bundled in the desktop app) |
+| **Node.js 24** and **npm** | building/running the Electron app from source | `app/` in dev mode, or building the installer yourself |
 | CUDA GPU | optional, only if you opt into local transcription (`whisperx`/`faster-whisper`) | nothing by default: the default configuration runs 100% on CPU/cloud |
 
 ## Installation and first run
 
-### 1. Clone and configure environment variables
+### 1. Desktop app (recommended)
+
+Download the latest installer from
+[Releases](https://github.com/J-Pster/pster-cliping/releases), run it (one click, no
+admin needed), and open Clipador from the Desktop/Start Menu shortcut. Fill in your AI
+API keys in the **Settings** screen and you're ready to generate clips. Details on the
+bundled runtime and auto-update in [`app/README.md`](app/README.md).
+
+### 2. Run the engine directly (CLI)
+
+For development or scripting, without the desktop app:
 
 ```bash
 git clone https://github.com/J-Pster/pster-cliping.git
-cd pster-cliping
-```
-
-Copy the `.env.example` of every folder you plan to use and fill in the keys. No `.env`
-file is versioned (see `.gitignore`); only the `.env.example` of each folder ships in
-the repository.
-
-```bash
-cp .env.example .env                    # root: local Postgres, AWS profile, Cognito
-cp backend/.env.example backend/.env     # backend: today just the HTTP port (the rest comes from docker-compose)
-cp engine/.env.example engine/.env       # engine: transcription/LLM keys (see table below)
-```
-
-### 2. Start backend + database (Docker)
-
-From the repository root:
-
-```bash
-docker compose up -d
-```
-
-Starts Postgres (port `5433` on the host) and the NestJS backend (port `3000`), with
-hot-reload of the code under `backend/src`. The backend container mounts `~/.aws`
-read-only and uses the profile set in `AWS_PROFILE` to authenticate for real against
-Cognito/Secrets Manager, with no local fallback for production secrets.
-
-```bash
-docker logs cortepolitico-backend -f   # follow the logs
-```
-
-### 3. Run the frontend
-
-```bash
-cd frontend
-npm install
-npm start
-```
-
-Opens at `http://localhost:4200`, talking to the backend at `http://localhost:3000`.
-
-### 4. Run the engine directly (CLI)
-
-The engine does not depend on the backend/frontend to work: it can be called directly
-from the command line. Full install guide (optional extras, GPU, fonts) and usage guide
-(every flag) in [`engine/README.md`](engine/README.md); minimal summary:
-
-```bash
-cd engine
+cd pster-cliping/engine
 pip install -e ".[video,cloud-transcribe,thumbnail-ai]"
-cp .env.example .env   # if you haven't already in step 1
+cp .env.example .env
 # fill in ELEVENLABS_API_KEY and CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY) in .env
 
 python -m clipador.cli "https://www.youtube.com/watch?v=XXXXXXXXXXX" \
@@ -193,38 +136,13 @@ python -m clipador.cli "https://www.youtube.com/watch?v=XXXXXXXXXXX" \
 ```
 
 Clips land in `engine/output/<video_id>_<title>/`, together with the thumbnail, burned-in
-subtitles, metadata, and a `ready-to-post.txt` per clip.
-
-### 5. Alternative without installing any code: the desktop GUI
-
-`local-use/` is an Electron app that runs the same engine behind a graphical interface,
-with no terminal, backend, or frontend needed. Useful for personal use on your own
-machine. Requires the engine to already be installed (step 4). Details in
-[`local-use/README.md`](local-use/README.md):
-
-```bash
-cd local-use
-npm install
-npm run dev
-```
+subtitles, metadata, and a `ready-to-post.txt` per clip. Full install guide (optional
+extras, GPU, fonts) and usage guide (every flag) in [`engine/README.md`](engine/README.md).
 
 ## Environment variables
 
-No credential is hardcoded in code: everything comes from `.env` (dev) or, in
-production, from AWS Secrets Manager. Each folder documents its variables line by line
-in its own `.env.example`; summary of the most important ones:
-
-### Root (`.env`, used by `docker-compose.yml`)
-
-| Variable | Required | Description |
-| --- | --- | --- |
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | yes | local Postgres credentials, any value works in dev |
-| `AWS_PROFILE` | yes (real backend) | AWS CLI/SSO profile mounted into the backend container |
-| `AWS_REGION` | yes | AWS region for the project |
-| `COGNITO_USER_POOL_ID` / `COGNITO_CLIENT_ID` | yes (auth) | Cognito User Pool provisioned in the AWS account |
-| `SECRETS_MANAGER_SECRET_ID` | yes (auth) | secret holding the API keys used by the backend |
-
-### `engine/.env`
+No credential is hardcoded in code: everything comes from `.env`. `engine/.env.example`
+documents every variable line by line; summary of the most important ones:
 
 | Variable | Required | Description |
 | --- | --- | --- |
@@ -234,26 +152,9 @@ in its own `.env.example`; summary of the most important ones:
 | `GEMINI_API_KEY` | optional | AI thumbnail (without it, falls back to a local Pillow treatment) and text LLM if `CLIPADOR_TEXT_LLM_PROVIDER=gemini` |
 | `CLIPADOR_TEXT_LLM_PROVIDER` | optional (`claude` default) | `claude` or `gemini`, the LLM used for the text stages |
 | `CLIPADOR_LLM_AUTH_MODE` | optional (`oauth` default) | `oauth` or `api_key`, only matters with `CLIPADOR_TEXT_LLM_PROVIDER=claude` |
-| `YOUTUBE_API_KEY` | optional, not used by the main pipeline today | YouTube Data API v3, see the note in `engine/README.md` |
 | `HUGGINGFACE_TOKEN` | optional | real diarization on the local `whisperx --diarize` backend |
 | `ASSEMBLYAI_API_KEY` | optional | only for `--transcriber assemblyai` |
 | `BUFFER_API_KEY` + `BUFFER_CHANNEL_<GROUP>_<PLATFORM>` | optional | automatic publishing of approved clips via [Buffer](https://buffer.com) (`clipador-publish`) |
-
-### `backend/.env`
-
-| Variable | Required | Description |
-| --- | --- | --- |
-| `PORT` | no (default `3000`) | backend HTTP port; already set by the service when run via `docker compose` |
-
-## Usage: two ways to generate clips
-
-**Through the SaaS (backend + frontend):** start both (steps 2 and 3), open the
-frontend, upload the video or paste the YouTube link, follow the job's progress, and
-review the generated clips in the queue before downloading/publishing.
-
-**Directly through the CLI or the desktop GUI:** run `engine` standalone (step 4) or
-`local-use` (step 5). Same engine, no account or server needed. Good for personal use or
-for debugging the pipeline without the rest of the stack.
 
 ## Useful commands per part of the project
 
@@ -263,27 +164,18 @@ python -m pytest tests/ -q                     # offline suite, no real network/
 python -m clipador.cli --help                   # full, always-current flag list
 python scripts/run_test_video.py                # end to end with the test video
 
-# backend (NestJS) — from the backend/ folder
-npm run start:dev                                # dev without Docker, watch mode
-npm run build                                     # nest build
-npm run test                                      # Jest
-
-# frontend (Angular) — from the frontend/ folder
-npm start                                         # ng serve
-npm run build                                     # production build
-npm test                                          # unit tests
-
-# local-use (Electron) — from the local-use/ folder
+# app (Electron) — from the app/ folder
 npm run dev                                       # app + hot reload
 npm run build                                     # typecheck + production build
+npm run dist                                      # build the Windows installer locally (needs runtime:all first)
 ```
 
 ## Additional documentation
 
 - [`engine/README.md`](engine/README.md) — full install and CLI usage guide (every flag, optional extras, subtitle presets).
-- [`engine/CLAUDE.md`](engine/CLAUDE.md), [`backend/CLAUDE.md`](backend/CLAUDE.md), [`frontend/CLAUDE.md`](frontend/CLAUDE.md) — stack, internal layout, and binding technical decisions for each part.
+- [`engine/CLAUDE.md`](engine/CLAUDE.md) — stack, internal layout, and binding technical decisions for the engine.
+- [`app/README.md`](app/README.md) — desktop app dev setup, bundled runtime, packaging, and auto-update.
 - [`.docs/decisions/`](.docs/decisions) — decision records with the evidence behind non-obvious choices (e.g. why transcription uses ElevenLabs Scribe v2 instead of a local model).
-- [`DESIGN.md`](DESIGN.md) — design system (tokens, typography, colors) used by the frontend.
 
 ## License
 

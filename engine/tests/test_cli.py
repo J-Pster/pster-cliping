@@ -99,7 +99,7 @@ def test_main_repassa_os_argumentos_para_o_pipeline(tmp_path, monkeypatch, capsy
         calls["kb"] = (root, movement)
         return "kb-fake"
 
-    def fake_run_pipeline(input_source, kb, config):
+    def fake_run_pipeline(input_source, kb, config, **_kwargs):
         calls["pipeline"] = (input_source, kb, config)
         clip = ClipOutput(
             clip_id="clip_00",
@@ -141,6 +141,7 @@ def test_main_repassa_os_argumentos_para_o_pipeline(tmp_path, monkeypatch, capsy
     assert config.min_short_clips == 2
     assert config.min_long_clips == 1
     assert config.generate_main_thumbnail is False
+    assert config.generate_thumbnail is True
     assert REVIEW_PENDING in capsys.readouterr().out
 
 
@@ -149,7 +150,7 @@ def test_main_repassa_generate_main_thumbnail_quando_a_flag_e_passada(tmp_path, 
 
     monkeypatch.setattr(cli, "load_knowledge_base", lambda root, movement: "kb-fake")
 
-    def fake_run_pipeline(input_source, kb, config):
+    def fake_run_pipeline(input_source, kb, config, **_kwargs):
         calls["config"] = config
         return build_result(tmp_path)
 
@@ -162,12 +163,30 @@ def test_main_repassa_generate_main_thumbnail_quando_a_flag_e_passada(tmp_path, 
     assert calls["config"].generate_main_thumbnail is True
 
 
+def test_main_repassa_generate_thumbnails_off(tmp_path, monkeypatch):
+    calls = {}
+
+    monkeypatch.setattr(cli, "load_knowledge_base", lambda root, movement: "kb-fake")
+
+    def fake_run_pipeline(input_source, kb, config, **_kwargs):
+        calls["config"] = config
+        return build_result(tmp_path)
+
+    monkeypatch.setattr(cli, "run_pipeline", fake_run_pipeline)
+
+    cli.main(
+        ["video.mp4", "--category", "politico_pessoa", "--watermark", "off", "--generate-thumbnails", "off"]
+    )
+
+    assert calls["config"].generate_thumbnail is False
+
+
 def test_main_retorna_erro_quando_nenhum_clipe_saiu(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli, "load_knowledge_base", lambda root, movement: "kb-fake")
     monkeypatch.setattr(
         cli,
         "run_pipeline",
-        lambda *args: build_result(
+        lambda *args, **kwargs: build_result(
             tmp_path, failures=[ClipFailure("clip_00", "thumbnail", "sem frame")]
         ),
     )
@@ -248,7 +267,7 @@ def test_main_repassa_a_marca_dagua_para_o_pipeline(tmp_path, monkeypatch):
 
     monkeypatch.setattr(cli, "load_knowledge_base", lambda root, movement: "kb-fake")
 
-    def fake_run_pipeline(input_source, kb, config):
+    def fake_run_pipeline(input_source, kb, config, **_kwargs):
         calls["config"] = config
         return build_result(tmp_path)
 

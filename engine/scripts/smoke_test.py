@@ -1,4 +1,4 @@
-"""Smoke test: verifica se as credenciais de API (Claude e YouTube) estao funcionando."""
+"""Smoke test: verifica se as credenciais de API (LLM de texto) estao funcionando."""
 
 import os
 import sys
@@ -41,20 +41,6 @@ def main() -> int:
                 ok = False
         except Exception as exc:
             print(f"FALHA: erro ao testar o provedor de texto ({TEXT_LLM_PROVIDER}): {exc}")
-            ok = False
-
-    print("\n-- YouTube Data API --")
-    if not os.environ.get("YOUTUBE_API_KEY"):
-        print("PENDENTE: YOUTUBE_API_KEY nao esta definida no ambiente (.env).")
-        ok = False
-    else:
-        try:
-            from clipador.youtube.client import get_client
-
-            get_client()
-            print("OK: client da YouTube Data API criado com sucesso.")
-        except Exception as exc:
-            print(f"FALHA: erro ao criar o client da YouTube Data API: {exc}")
             ok = False
 
     print()

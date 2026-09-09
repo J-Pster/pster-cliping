@@ -1,0 +1,176 @@
+/*
+ * Sistema de formularios, traduzido de DESIGN.md secao 6 (_dashboard-form-fields.scss).
+ * Prefixo `lu-` (local-use) no lugar de `bc-dash-form` (nao e o codigo bidchex),
+ * mesmos valores visuais.
+ */
+
+.lu-field {
+  margin-bottom: 1rem;
+}
+
+.lu-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-bottom: 1rem;
+}
+
+.lu-field-row .lu-field {
+  margin-bottom: 0;
+}
+
+@media (max-width: 767px) {
+  .lu-field-row {
+    flex-direction: column;
+  }
+}
+
+.lu-field--half {
+  flex: 1 1 220px;
+}
+
+.lu-label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: var(--font-weight-medium);
+  margin-bottom: 0.35rem;
+  color: var(--text-muted);
+}
+
+.lu-control {
+  width: 100%;
+  max-width: 420px;
+  padding: 12px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  font-size: 0.875rem;
+  background: var(--panel);
+  color: var(--text);
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.lu-control:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--hover-bg);
+}
+
+.lu-control::placeholder {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.lu-control:disabled {
+  opacity: 0.6;
+  background: var(--bg);
+  color: var(--text-muted);
+}
+
+textarea.lu-control {
+  max-width: 560px;
+  resize: vertical;
+}
+
+.lu-form--wide .lu-control,
+.lu-form--shell .lu-control {
+  max-width: none;
+}
+
+/* Linha-gatilho (seletores de data/pasta/arquivo com valor exibido inline) */
+.lu-trigger-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-compact);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
+  cursor: pointer;
+}
+
+.lu-trigger-row:hover {
+  background: var(--hover-bg);
+  border-color: var(--accent);
+}
+
+.lu-trigger-row--open {
+  border-color: var(--accent);
+}
+
+.lu-trigger-row:focus-within {
+  box-shadow: 0 0 0 3px var(--hover-bg);
+}
+
+.lu-trigger-placeholder {
+  font-size: 13px;
+  font-weight: var(--font-weight-medium);
+  color: var(--text-muted);
+}
+
+.lu-pill {
+  border-radius: var(--radius-full);
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  background: var(--hover-bg);
+  border: 1px solid var(--border);
+}
+
+.lu-trigger-chevron {
+  margin-left: auto;
+  transition: transform var(--transition-fast);
+  color: var(--text-fine);
+}
+
+.lu-trigger-row--open .lu-trigger-chevron {
+  transform: rotate(180deg);
+}
+
+/* Dicas e erros */
+.lu-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 0.35rem;
+  line-height: 1.45;
+}
+
+.lu-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  padding: var(--space-2) var(--space-3);
+  margin-top: 0.35rem;
+}
+
+/* Pills de escolha (radio Sim/Nao, opcoes fechadas) */
+.lu-choice-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  padding: var(--space-2) var(--space-3);
+  transition:
+    border-color var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+.lu-choice-pill:hover {
+  border-color: var(--accent);
+  background: var(--hover-bg);
+}
+
+.lu-choice-pill:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.lu-choice-pill input {
+  accent-color: var(--accent);
+}

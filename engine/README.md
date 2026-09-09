@@ -112,15 +112,6 @@ of this repo's internal comments); the summary below is in English.
 - **`CLIPADOR_GEMINI_TEXT_MODEL`** - only used when `CLIPADOR_TEXT_LLM_PROVIDER=gemini`;
   unset uses the code default (`gemini-3.1-pro-preview` at the time of writing). Does not
   affect the thumbnail's image model, which is fixed in `thumbnail/ai_thumbnail.py`.
-- **`YOUTUBE_API_KEY`** - from
-  [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials).
-  This backs `YouTubeMetadataFetcher` (`clipador/download/metadata.py`), which fetches
-  official title/description/tags/thumbnail/duration via the YouTube Data API v3.
-  **As far as this document's author could verify by reading the code, neither the main
-  `clipador` CLI/pipeline nor `clipador-rebrand` currently calls this fetcher** - the
-  pipeline gets the video title from yt-dlp's own metadata instead. Treat this key as
-  optional/unused by the documented workflow unless you are writing code against
-  `download/metadata.py` directly.
 - **`HUGGINGFACE_TOKEN`** - only needed for **real speaker diarization** on the local
   `whisperx` backend (`--transcriber whisperx --diarize`). Requires accepting the terms
   at `huggingface.co/pyannote/speaker-diarization-3.1` and

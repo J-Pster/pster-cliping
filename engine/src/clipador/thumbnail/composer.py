@@ -1,11 +1,21 @@
-"""Composicao da thumbnail chamativa: fundo tratado + recorte da pessoa + headline + destaque.
+"""Composicao da thumbnail: `compose()` gera via Gemini (unica via usada pelo pipeline hoje,
+ver decisao abaixo). `compose_layered()` e a composicao antiga em camadas (fundo tratado +
+recorte da pessoa + headline + destaque, tudo em Pillow) - nao e mais chamada
+automaticamente, existe como caminho explicito caso um modo sem-IA volte a ser oferecido.
 
 A headline vem do LLM de metadados (`ClipMetadata.thumbnail_headline`) e e um gancho, nunca
 a fala literal que ja aparece na legenda queimada do video.
 
-Toda sub-etapa e opcional por construcao: se a deteccao de rosto, o tratamento de fundo, o
-recorte, o texto ou o destaque falharem, a etapa e pulada com log de warning e a composicao
-segue. No pior caso `compose()` devolve o frame original intacto.
+Decisao do projeto: `compose()` NAO cai mais pra `compose_layered()` quando o Gemini falha
+ou esta indisponivel. Levanta `ThumbnailError` (ver `AIThumbnailGenerator.generate`) e a
+etapa "thumbnail" desse clipe falha visivelmente (`ClipStageError` em `clipador.pipeline`,
+que isola a falha sem derrubar os outros clipes) - uma thumbnail degradada saindo sem
+aviso nenhum era pior que o clipe ficar sem thumbnail e marcado como falho.
+
+Dentro de `compose_layered()`, cada sub-etapa (deteccao de rosto, tratamento de fundo,
+recorte, texto, destaque) continua opcional por construcao: se qualquer uma falhar, e
+pulada com log de warning e a composicao segue - essa degradacao gradual so vale AQUI,
+nunca como substituto silencioso da geracao via IA.
 """
 
 from __future__ import annotations
@@ -71,9 +81,9 @@ class ThumbnailComposer:
         self.background_editor = background_editor or GeminiBackgroundEditor()
         self.face_detector = face_detector
         self.style = style or ThumbnailStyle()
-        # Geracao completa via IA (fundo+texto+seta numa chamada so) e o caminho
-        # preferido quando disponivel; a composicao em camadas abaixo (fundo tratado +
-        # recorte + texto/seta em Pillow) so roda como fallback dela.
+        # Geracao completa via IA (fundo+texto+seta numa chamada so): unico caminho de
+        # `compose()`, sem fallback pra composicao em camadas (ver decisao no topo do
+        # modulo).
         self.ai_generator = ai_generator or AIThumbnailGenerator()
 
     def compose(
@@ -83,36 +93,27 @@ class ThumbnailComposer:
         aspect_ratio: str = "9:16",
         subject: PoliticalFigure | None = None,
     ) -> Image.Image:
+        """Levanta `ThumbnailError` (propagada de `AIThumbnailGenerator.generate`) se o
+        Gemini nao gerar a imagem - sem fallback, ver decisao no topo do modulo."""
         frame_path = Path(frame_path)
         base = Image.open(frame_path).convert("RGB")
+        image = self.ai_generator.generate(base, headline, aspect_ratio, subject=subject)
+        return image.convert("RGB")
 
-        generated = self._try_ai_generate(base, headline, aspect_ratio, subject)
-        if generated is not None:
-            return generated
-
+    def compose_layered(
+        self,
+        frame_path: str | Path,
+        headline: str,
+    ) -> Image.Image:
+        """Composicao antiga em camadas, sem IA. Nao chamada por `compose()` (ver decisao
+        no topo do modulo); existe como caminho explicito."""
+        frame_path = Path(frame_path)
+        base = Image.open(frame_path).convert("RGB")
         face = self._detect_face(base)
         canvas = self._treated_background(base)
         canvas = self._paste_person(canvas, frame_path)
         canvas = self._draw_headline(canvas, headline, face)
         return self._draw_highlight(canvas, face)
-
-    def _try_ai_generate(
-        self,
-        base: Image.Image,
-        headline: str,
-        aspect_ratio: str,
-        subject: PoliticalFigure | None,
-    ) -> Image.Image | None:
-        try:
-            image = self.ai_generator.generate(base, headline, aspect_ratio, subject=subject)
-            return image.convert("RGB") if image is not None else None
-        except Exception as exc:
-            logger.warning(
-                "Geracao completa da thumbnail via IA falhou (%s); caindo pra "
-                "composicao em camadas.",
-                exc,
-            )
-            return None
 
     def _detect_face(self, image: Image.Image) -> FaceBox | None:
         if self.face_detector is None:
