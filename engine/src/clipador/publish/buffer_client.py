@@ -10,11 +10,13 @@ import os
 from typing import Any
 
 import requests
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 from clipador.publish.models import PublishError
 
-load_dotenv(override=True)
+# ver comentario em clipador/llm/provider.py: sem find_dotenv(usecwd=True), dotenv
+# procura .env a partir da pasta deste arquivo, nao do cwd do processo.
+load_dotenv(find_dotenv(usecwd=True), override=True)
 
 API_URL = "https://api.buffer.com"
 

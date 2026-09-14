@@ -1,7 +1,7 @@
 {
   "name": "clipador",
-  "productName": "Clipador",
-  "version": "1.0.0",
+  "productName": "Pster Clipping",
+  "version": "1.0.2",
   "private": true,
   "author": "Joao Pster",
   "description": "Aplicativo desktop (Electron) do Clipador: gera clipes a partir de um link do YouTube ou video local, com o engine Python embutido, sem precisar instalar Python.",
@@ -22,6 +22,7 @@
     "@fontsource/poppins": "^5.3.0",
     "builder-util-runtime": "9.7.0",
     "electron-updater": "^6.3.9",
+    "lucide-react": "^1.43.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.3",

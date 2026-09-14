@@ -26,6 +26,8 @@ export const IpcChannel = {
   kbRemoveSource: 'kb:remove-source',
   featuresGet: 'features:get',
   featuresSave: 'features:save',
+  preferencesGetLastOutputDir: 'preferences:get-last-output-dir',
+  preferencesSaveLastOutputDir: 'preferences:save-last-output-dir',
   watermarkPickSourceImage: 'watermark:pick-source-image',
   watermarkReadSourceImage: 'watermark:read-source-image',
   watermarkRemoveSourceImage: 'watermark:remove-source-image',

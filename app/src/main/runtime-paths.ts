@@ -68,6 +68,15 @@ export function defaultFontsDir(): string | undefined {
   return join(bundledEngineDir(), 'assets', 'fonts')
 }
 
+/** Igual defaultFontsDir(): models/ nunca e editado pelo usuario, entao em producao
+ * aponta direto pra copia read-only dos resources em vez de duplicar em userData.
+ * Undefined em dev deixa o default relativo do proprio CLI (models/blaze_face_...
+ * relativo ao cwd, que e o checkout do engine) valer, como sempre foi. */
+export function defaultFaceModelPath(): string | undefined {
+  if (!isPackaged()) return undefined
+  return join(bundledEngineDir(), 'models', 'blaze_face_short_range.tflite')
+}
+
 export function hasBundledFfmpeg(): boolean {
   return isPackaged() && existsSync(bundledFfmpegDir())
 }

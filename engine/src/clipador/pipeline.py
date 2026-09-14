@@ -36,6 +36,7 @@ from clipador.kb.knowledge import KnowledgeBase
 from clipador.main_thumbnail import MainVideoThumbnailResult, generate_main_video_thumbnail
 from clipador.metadata.generator import generate_metadata
 from clipador.metadata.models import ClipMetadata
+from clipador import usage
 from clipador.progress import OnProgress, noop_progress
 from clipador.reframe.faces import MediaPipeFaceDetector
 from clipador.reframe.reframer import VerticalReframer
@@ -503,6 +504,7 @@ def run_pipeline(
     review_queue: ReviewQueue | None = None,
     on_progress: OnProgress = noop_progress,
 ) -> PipelineResult:
+    usage.configure(on_progress)
     config.work_dir.mkdir(parents=True, exist_ok=True)
     config.output_root.mkdir(parents=True, exist_ok=True)
 

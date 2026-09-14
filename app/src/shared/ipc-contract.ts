@@ -166,6 +166,9 @@ export interface EngineExitEvent {
   timestamp: number
 }
 
+/** Provedor de LLM/API externa cobrado por uso (ver engine/src/clipador/usage.py). */
+export type UsageProvider = 'claude' | 'gemini' | 'elevenlabs'
+
 /**
  * Progresso estruturado emitido pelo engine (ver engine/src/clipador/progress.py),
  * uma linha "CLIPADOR_PROGRESS <json>" no stdout por evento. `event` distingue o
@@ -175,11 +178,14 @@ export interface EngineExitEvent {
  * - "plan": plano de clipes/videos calculado; `total` = quantos serao processados.
  * - "clip_start" / "clip_done" / "clip_failed": um clipe (ou video, no rebrand)
  *   comecou, terminou com sucesso ou falhou; `index`/`total` da a posicao no plano.
+ * - "usage": consumo de uma chamada de LLM, geracao de imagem ou transcricao em nuvem
+ *   (ver engine/src/clipador/usage.py); usa `provider`/`operation` + os campos de
+ *   quantidade que fizerem sentido pro provedor (nem toda chamada preenche todos).
  */
 export interface EngineProgressEvent {
   jobId: string
   timestamp: number
-  event: 'phase' | 'plan' | 'clip_start' | 'clip_done' | 'clip_failed'
+  event: 'phase' | 'plan' | 'clip_start' | 'clip_done' | 'clip_failed' | 'usage'
   phase?: string
   message?: string
   index?: number
@@ -189,6 +195,17 @@ export interface EngineProgressEvent {
   directory?: string
   status?: string
   stage?: string
+  /** Evento "usage": id que agrupa toda chamada de UMA execucao (um processo Python). */
+  runId?: string
+  provider?: UsageProvider
+  /** Evento "usage": "text" (Claude/Gemini selecao-rerank-metadados), "thumbnail_image",
+   * "thumbnail_background" ou "transcribe" (ElevenLabs). */
+  operation?: string
+  inputTokens?: number
+  outputTokens?: number
+  characters?: number
+  audioSeconds?: number
+  images?: number
 }
 
 /** Retornado por onLog/onExit para cancelar a subscricao. */
@@ -320,6 +337,13 @@ export interface FeaturesApi {
   save(config: FeaturesConfig): Promise<void>
 }
 
+/** Compartilhada entre New Clip e Rebrand: mesma nocao de "onde meus clipes vao parar". */
+export interface PreferencesApi {
+  /** Null se o usuario nunca rodou um job (nenhuma pasta informada ainda). */
+  getLastOutputDir(): Promise<string | null>
+  saveLastOutputDir(path: string): Promise<void>
+}
+
 export interface WatermarkApi {
   /** Abre seletor de imagem (PNG/JPG), COPIA o arquivo escolhido pra pasta gerenciada do
    * app e devolve o novo caminho + preview. Null se cancelado. Chamar de novo com uma
@@ -371,6 +395,7 @@ export interface ClipadorApi {
   engine: EngineApi
   kb: KbApi
   features: FeaturesApi
+  preferences: PreferencesApi
   watermark: WatermarkApi
   app: AppApi
 }

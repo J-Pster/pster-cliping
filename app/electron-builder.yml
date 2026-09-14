@@ -1,5 +1,5 @@
-appId: com.pster.clipador
-productName: Clipador
+appId: com.pster.clipping
+productName: Pster Clipping
 directories:
   output: dist
   buildResources: build
@@ -36,10 +36,13 @@ win:
       arch: [x64]
     - target: portable
       arch: [x64]
-  artifactName: ${productName}-Setup-${version}.${ext}
+  artifactName: PsterClipping-Setup-${version}.${ext}
 
 nsis:
-  artifactName: ${productName}-Setup-${version}.${ext}
+  artifactName: PsterClipping-Setup-${version}.${ext}
+  # Pagina extra com checkbox pra instalar (ou nao) a base de conhecimento da
+  # categoria politico-pessoa; ver comentario no topo do proprio arquivo.
+  include: build/installer.nsh
   # oneClick:false mostra o assistente padrao do NSIS (com barra de progresso
   # arquivo-por-arquivo) em vez da tela "Installing, please wait..." sem feedback
   # nenhum - o runtime embutido tem ~20 mil arquivos, a instalacao leva 1-3 min
@@ -56,7 +59,7 @@ nsis:
 # util pra testar rapido ou rodar de um pendrive; a extracao dos ~20 mil arquivos do
 # runtime ainda acontece (mesmo custo de Defender), so na PRIMEIRA execucao.
 portable:
-  artifactName: ${productName}-Portable-${version}.${ext}
+  artifactName: PsterClipping-Portable-${version}.${ext}
 
 # electron-updater le isto (embutido como app-update.yml no build) pra checar
 # releases publicadas neste repo no GitHub.

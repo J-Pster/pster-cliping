@@ -14,6 +14,7 @@ import { cancelJob, runClip, runRebrand } from './engine'
 import { getSettings, saveSettings } from './settings'
 import { addSource, deleteDoc, listCategory, removeSource, saveDoc } from './kb'
 import { getFeatures, saveFeatures } from './features'
+import { getLastOutputDir, saveLastOutputDir } from './preferences'
 import {
   pickSourceImage,
   readBakedImage,
@@ -62,6 +63,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle(IpcChannel.featuresGet, () => getFeatures())
   ipcMain.handle(IpcChannel.featuresSave, (_event, config: FeaturesConfig) => saveFeatures(config))
+
+  ipcMain.handle(IpcChannel.preferencesGetLastOutputDir, () => getLastOutputDir())
+  ipcMain.handle(IpcChannel.preferencesSaveLastOutputDir, (_event, path: string) =>
+    saveLastOutputDir(path)
+  )
 
   ipcMain.handle(IpcChannel.watermarkPickSourceImage, () => pickSourceImage(mainWindow))
   ipcMain.handle(IpcChannel.watermarkReadSourceImage, () => readSourceImage())

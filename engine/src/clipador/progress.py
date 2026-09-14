@@ -20,7 +20,7 @@ MARKER = "CLIPADOR_PROGRESS "
 
 
 class ProgressEvent(TypedDict, total=False):
-    event: str  # "phase" | "plan" | "clip_start" | "clip_done" | "clip_failed"
+    event: str  # "phase" | "plan" | "clip_start" | "clip_done" | "clip_failed" | "usage"
     phase: str
     message: str
     index: int
@@ -30,6 +30,17 @@ class ProgressEvent(TypedDict, total=False):
     directory: str
     status: str
     stage: str
+    # Campos de "usage" (ver clipador.usage): consumo de uma chamada de LLM, geracao de
+    # imagem ou transcricao em nuvem.
+    run_id: str
+    timestamp: str
+    provider: str  # "claude" | "gemini" | "elevenlabs"
+    operation: str  # "text" | "thumbnail_image" | "transcribe"
+    input_tokens: int
+    output_tokens: int
+    characters: int
+    audio_seconds: float
+    images: int
 
 
 OnProgress = Callable[[ProgressEvent], None]

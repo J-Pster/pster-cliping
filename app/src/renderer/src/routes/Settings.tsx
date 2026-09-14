@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import type { EngineSettings } from '@shared/ipc-contract'
+import { Brain, Cpu, Eye, EyeOff, Info, Mic, Wrench, type LucideIcon } from 'lucide-react'
+import type { AppInfo, EngineSettings, UpdateStatus } from '@shared/ipc-contract'
+import Disclosure from '../components/Disclosure'
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -7,7 +9,9 @@ const EMPTY_SETTINGS: EngineSettings = {
   engineDir: '',
   pythonPath: '',
   CLIPADOR_TEXT_LLM_PROVIDER: 'claude',
-  CLIPADOR_LLM_AUTH_MODE: 'oauth',
+  // So API key: sem OAuth (nao tem como usar a assinatura Claude Pro/Max por aqui).
+  // Campo continua existindo no contrato/engine, so nao aparece mais editavel na UI.
+  CLIPADOR_LLM_AUTH_MODE: 'api_key',
   CLAUDE_CODE_OAUTH_TOKEN: '',
   ANTHROPIC_API_KEY: '',
   HUGGINGFACE_TOKEN: '',
@@ -25,6 +29,33 @@ const EMPTY_SETTINGS: EngineSettings = {
 }
 
 type EnvField = keyof Omit<EngineSettings, 'engineDir' | 'pythonPath'>
+
+function Card({
+  icon: Icon,
+  title,
+  desc,
+  children
+}: {
+  icon: LucideIcon
+  title: string
+  desc?: string
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <div className="lu-card">
+      <div className="lu-card__header">
+        <span className="lu-card__icon" aria-hidden="true">
+          <Icon size={18} strokeWidth={2} />
+        </span>
+        <div className="lu-card__heading">
+          <h2 className="lu-card__title">{title}</h2>
+          {desc && <p className="lu-card__desc">{desc}</p>}
+        </div>
+      </div>
+      {children}
+    </div>
+  )
+}
 
 function TextField({
   label,
@@ -85,7 +116,7 @@ function PasswordField({
           aria-label={visible ? 'Esconder valor' : 'Mostrar valor'}
           title={visible ? 'Esconder valor' : 'Mostrar valor'}
         >
-          {visible ? '🙈' : '👁'}
+          {visible ? <EyeOff size={16} strokeWidth={2} /> : <Eye size={16} strokeWidth={2} />}
         </button>
       </div>
       {hint && <p className="lu-hint">{hint}</p>}
@@ -93,24 +124,44 @@ function PasswordField({
   )
 }
 
+function updateStatusLabel(status: UpdateStatus): string {
+  switch (status.state) {
+    case 'checking':
+      return 'Verificando...'
+    case 'not-available':
+      return 'Voce ja esta na versao mais recente.'
+    case 'available':
+      return `Atualizacao ${status.version} disponivel, baixando...`
+    case 'downloading':
+      return `Baixando atualizacao... ${status.percent}%`
+    case 'downloaded':
+      return `Atualizacao ${status.version} pronta. Reinicie pelo aviso no rodape.`
+    case 'error':
+      return `Falha ao verificar: ${status.message}`
+    default:
+      return ''
+  }
+}
+
 export default function SettingsRoute(): React.JSX.Element {
   const [settings, setSettings] = useState<EngineSettings>(EMPTY_SETTINGS)
+  const [appInfo, setAppInfo] = useState<AppInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [transcriptionExtraOpen, setTranscriptionExtraOpen] = useState(false)
-  const [bufferOpen, setBufferOpen] = useState(false)
-  const [advancedOpen, setAdvancedOpen] = useState(false)
-  const [isPackaged, setIsPackaged] = useState(false)
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null)
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     Promise.all([window.api.settings.get(), window.api.app.getInfo()])
       .then(([loaded, info]) => {
         if (!cancelled) {
-          setSettings(loaded)
-          setIsPackaged(info.isPackaged)
+          // Forca api_key mesmo se um .env antigo ainda tiver oauth salvo: a UI nao
+          // oferece mais essa escolha (ver comentario em EMPTY_SETTINGS).
+          setSettings({ ...loaded, CLIPADOR_LLM_AUTH_MODE: 'api_key' })
+          setAppInfo(info)
         }
       })
       .catch((error: unknown) => {
@@ -126,6 +177,10 @@ export default function SettingsRoute(): React.JSX.Element {
     return () => {
       cancelled = true
     }
+  }, [])
+
+  useEffect(() => {
+    return window.api.app.onUpdateStatus(setUpdateStatus)
   }, [])
 
   function update<K extends keyof EngineSettings>(key: K, value: EngineSettings[K]): void {
@@ -155,6 +210,17 @@ export default function SettingsRoute(): React.JSX.Element {
     }
   }
 
+  async function handleCheckUpdate(): Promise<void> {
+    setCheckingUpdate(true)
+    try {
+      await window.api.app.checkForUpdates()
+    } catch {
+      // o evento 'error' do autoUpdater ja chega via onUpdateStatus
+    } finally {
+      setCheckingUpdate(false)
+    }
+  }
+
   if (loading) {
     return <p className="lu-hint">Carregando configuracoes...</p>
   }
@@ -163,9 +229,50 @@ export default function SettingsRoute(): React.JSX.Element {
     <div className="lu-stack">
       {loadError && <div className="lu-banner lu-banner--error">Falha ao carregar: {loadError}</div>}
 
-      {!isPackaged && (
-        <div className="lu-card">
-          <h2 className="lu-section-title">Engine</h2>
+      <Card icon={Brain} title="LLM de texto" desc="Provedor usado na selecao, rerank, titulo/descricao/hashtags.">
+        <div className="lu-field">
+          <label className="lu-label">Provedor</label>
+          <select
+            className="lu-control"
+            value={settings.CLIPADOR_TEXT_LLM_PROVIDER}
+            onChange={(event) => updateEnv('CLIPADOR_TEXT_LLM_PROVIDER', event.target.value)}
+          >
+            <option value="claude">Claude</option>
+            <option value="gemini">Gemini</option>
+          </select>
+        </div>
+        <PasswordField
+          label="ANTHROPIC_API_KEY"
+          value={settings.ANTHROPIC_API_KEY}
+          onChange={(value) => updateEnv('ANTHROPIC_API_KEY', value)}
+          hint="console.anthropic.com. Usada quando o provedor de texto e Claude."
+        />
+        <TextField
+          label="Modelo Gemini de texto (opcional)"
+          value={settings.CLIPADOR_GEMINI_TEXT_MODEL}
+          onChange={(value) => updateEnv('CLIPADOR_GEMINI_TEXT_MODEL', value)}
+          placeholder="gemini-3.1-pro-preview"
+          hint="So usado quando o provedor de texto e Gemini. Vazio usa o default do codigo."
+        />
+        <PasswordField
+          label="GEMINI_API_KEY"
+          value={settings.GEMINI_API_KEY}
+          onChange={(value) => updateEnv('GEMINI_API_KEY', value)}
+          hint="aistudio.google.com/apikey. Tambem usada sempre para gerar a thumbnail (Nano Banana)."
+        />
+      </Card>
+
+      <Card icon={Mic} title="Transcricao" desc="ElevenLabs Scribe v2 e o backend padrao do projeto.">
+        <PasswordField
+          label="ELEVENLABS_API_KEY"
+          value={settings.ELEVENLABS_API_KEY}
+          onChange={(value) => updateEnv('ELEVENLABS_API_KEY', value)}
+          hint="Obrigatoria: e o unico backend de transcricao usado. elevenlabs.io > perfil > API Keys."
+        />
+      </Card>
+
+      {appInfo && !appInfo.isPackaged && (
+        <Card icon={Cpu} title="Engine" desc="So em desenvolvimento: em producao ja vem embutido.">
           <div className="lu-field">
             <label className="lu-label">Pasta do engine</label>
             <div className="lu-field-with-browse">
@@ -188,224 +295,58 @@ export default function SettingsRoute(): React.JSX.Element {
             placeholder="C:\caminho\para\engine\.venv\Scripts\python.exe"
             hint="Executavel Python dentro do venv onde o pacote clipador foi instalado."
           />
-        </div>
+        </Card>
       )}
 
-      {isPackaged && (
-        <div className="lu-card">
-          <div className={`lu-collapsible${advancedOpen ? ' lu-collapsible--open' : ''}`}>
-            <button
-              type="button"
-              className="lu-collapsible__trigger"
-              onClick={() => setAdvancedOpen((current) => !current)}
-            >
-              <span className="lu-collapsible__chevron" aria-hidden="true">
-                ▶
-              </span>
-              Avancado: engine/Python usados
-            </button>
-
-            {advancedOpen && (
-              <div className="lu-collapsible__body">
-                <p className="lu-hint">
-                  O Clipador ja vem com o engine e o Python embutidos, nao precisa configurar nada
-                  aqui. Estes campos so existem para depuracao.
-                </p>
-                <div className="lu-field">
-                  <label className="lu-label">Pasta de trabalho (kb, .env, output)</label>
-                  <div className="lu-field-with-browse">
-                    <input
-                      className="lu-control"
-                      type="text"
-                      value={settings.engineDir}
-                      onChange={(event) => update('engineDir', event.target.value)}
-                    />
-                    <button type="button" className="btn btn-secondary" onClick={browseEngineDir}>
-                      Escolher...
-                    </button>
-                  </div>
-                </div>
-                <TextField
-                  label="Python embutido"
-                  value={settings.pythonPath}
-                  onChange={(value) => update('pythonPath', value)}
-                />
-              </div>
-            )}
+      {appInfo?.isPackaged && (
+        <Disclosure title="Avancado" subtitle="Engine/Python usados, so para depuracao" icon={Wrench}>
+          <p className="lu-hint">
+            O Clipador ja vem com o engine e o Python embutidos, nao precisa configurar nada aqui.
+          </p>
+          <div className="lu-field">
+            <label className="lu-label">Pasta de trabalho (kb, .env, output)</label>
+            <div className="lu-field-with-browse">
+              <input
+                className="lu-control"
+                type="text"
+                value={settings.engineDir}
+                onChange={(event) => update('engineDir', event.target.value)}
+              />
+              <button type="button" className="btn btn-secondary" onClick={browseEngineDir}>
+                Escolher...
+              </button>
+            </div>
           </div>
-        </div>
+          <TextField
+            label="Python embutido"
+            value={settings.pythonPath}
+            onChange={(value) => update('pythonPath', value)}
+          />
+        </Disclosure>
       )}
 
-      <div className="lu-card">
-        <h2 className="lu-section-title">LLM de texto</h2>
-        <div className="lu-field-row">
-          <div className="lu-field lu-field--half">
-            <label className="lu-label">Provedor</label>
-            <select
-              className="lu-control"
-              value={settings.CLIPADOR_TEXT_LLM_PROVIDER}
-              onChange={(event) => updateEnv('CLIPADOR_TEXT_LLM_PROVIDER', event.target.value)}
-            >
-              <option value="claude">Claude</option>
-              <option value="gemini">Gemini</option>
-            </select>
+      <Card icon={Info} title="Sobre" desc="Pster Clipping">
+        <div className="lu-about-row">
+          <div>
+            <p className="lu-about-row__label">Versao instalada</p>
+            <p className="lu-about-row__value">{appInfo?.version ?? '...'}</p>
           </div>
-          <div className="lu-field lu-field--half">
-            <label className="lu-label">Modo de autenticacao</label>
-            <select
-              className="lu-control"
-              value={settings.CLIPADOR_LLM_AUTH_MODE}
-              onChange={(event) => updateEnv('CLIPADOR_LLM_AUTH_MODE', event.target.value)}
-            >
-              <option value="oauth">OAuth (assinatura Claude Pro/Max)</option>
-              <option value="api_key">API key (pay per use)</option>
-            </select>
-          </div>
-        </div>
-        <PasswordField
-          label="CLAUDE_CODE_OAUTH_TOKEN"
-          value={settings.CLAUDE_CODE_OAUTH_TOKEN}
-          onChange={(value) => updateEnv('CLAUDE_CODE_OAUTH_TOKEN', value)}
-          hint="Gere com 'claude setup-token'. Usado quando o modo de autenticacao e OAuth."
-        />
-        <PasswordField
-          label="ANTHROPIC_API_KEY"
-          value={settings.ANTHROPIC_API_KEY}
-          onChange={(value) => updateEnv('ANTHROPIC_API_KEY', value)}
-          hint="console.anthropic.com. Usado quando o modo de autenticacao e API key."
-        />
-        <TextField
-          label="Modelo Gemini de texto (opcional)"
-          value={settings.CLIPADOR_GEMINI_TEXT_MODEL}
-          onChange={(value) => updateEnv('CLIPADOR_GEMINI_TEXT_MODEL', value)}
-          placeholder="gemini-3.1-pro-preview"
-          hint="So usado quando o provedor de texto e Gemini. Vazio usa o default do codigo."
-        />
-        <PasswordField
-          label="GEMINI_API_KEY"
-          value={settings.GEMINI_API_KEY}
-          onChange={(value) => updateEnv('GEMINI_API_KEY', value)}
-          hint="aistudio.google.com/apikey. Tambem usada sempre para gerar a thumbnail (Nano Banana)."
-        />
-      </div>
-
-      <div className="lu-card">
-        <h2 className="lu-section-title">Transcricao</h2>
-        <PasswordField
-          label="ELEVENLABS_API_KEY"
-          value={settings.ELEVENLABS_API_KEY}
-          onChange={(value) => updateEnv('ELEVENLABS_API_KEY', value)}
-          hint="Obrigatoria para o backend padrao (elevenlabs). elevenlabs.io > perfil > API Keys."
-        />
-
-        <div className={`lu-collapsible${transcriptionExtraOpen ? ' lu-collapsible--open' : ''}`}>
           <button
             type="button"
-            className="lu-collapsible__trigger"
-            onClick={() => setTranscriptionExtraOpen((current) => !current)}
+            className="btn btn-secondary"
+            onClick={handleCheckUpdate}
+            disabled={checkingUpdate || !appInfo?.isPackaged}
           >
-            <span className="lu-collapsible__chevron" aria-hidden="true">
-              ▶
-            </span>
-            Chaves extras (nao usadas agora)
+            {checkingUpdate ? 'Verificando...' : 'Verificar atualizacoes'}
           </button>
-
-          {transcriptionExtraOpen && (
-            <div className="lu-collapsible__body">
-              <PasswordField
-                label="ASSEMBLYAI_API_KEY"
-                value={settings.ASSEMBLYAI_API_KEY}
-                onChange={(value) => updateEnv('ASSEMBLYAI_API_KEY', value)}
-                hint="Usada apenas pelo backend de transcricao assemblyai (nao e o padrao)."
-              />
-              <PasswordField
-                label="HUGGINGFACE_TOKEN"
-                value={settings.HUGGINGFACE_TOKEN}
-                onChange={(value) => updateEnv('HUGGINGFACE_TOKEN', value)}
-                hint="So necessario para diarizacao real via WhisperX (nao e o backend padrao)."
-              />
-            </div>
-          )}
         </div>
-      </div>
-
-      <div className="lu-card">
-        <div className={`lu-collapsible${bufferOpen ? ' lu-collapsible--open' : ''}`}>
-          <button
-            type="button"
-            className="lu-collapsible__trigger"
-            onClick={() => setBufferOpen((current) => !current)}
-          >
-            <span className="lu-collapsible__chevron" aria-hidden="true">
-              ▶
-            </span>
-            Postagem automatica (Buffer) - nao usada agora
-          </button>
-
-          {bufferOpen && (
-            <div className="lu-collapsible__body">
-              <PasswordField
-                label="BUFFER_API_KEY"
-                value={settings.BUFFER_API_KEY}
-                onChange={(value) => updateEnv('BUFFER_API_KEY', value)}
-                hint="buffer.com > Settings > API."
-              />
-              <div className="lu-field-row">
-                <div className="lu-field lu-field--half">
-                  <TextField
-                    label="Commit Civico - YouTube"
-                    value={settings.BUFFER_CHANNEL_COMMIT_CIVICO_YOUTUBE}
-                    onChange={(value) => updateEnv('BUFFER_CHANNEL_COMMIT_CIVICO_YOUTUBE', value)}
-                  />
-                </div>
-                <div className="lu-field lu-field--half">
-                  <TextField
-                    label="Commit Civico - Instagram"
-                    value={settings.BUFFER_CHANNEL_COMMIT_CIVICO_INSTAGRAM}
-                    onChange={(value) => updateEnv('BUFFER_CHANNEL_COMMIT_CIVICO_INSTAGRAM', value)}
-                  />
-                </div>
-              </div>
-              <div className="lu-field-row">
-                <div className="lu-field lu-field--half">
-                  <TextField
-                    label="Commit Civico - TikTok"
-                    value={settings.BUFFER_CHANNEL_COMMIT_CIVICO_TIKTOK}
-                    onChange={(value) => updateEnv('BUFFER_CHANNEL_COMMIT_CIVICO_TIKTOK', value)}
-                  />
-                </div>
-                <div className="lu-field lu-field--half">
-                  <TextField
-                    label="Pessoal - YouTube"
-                    value={settings.BUFFER_CHANNEL_PESSOAL_YOUTUBE}
-                    onChange={(value) => updateEnv('BUFFER_CHANNEL_PESSOAL_YOUTUBE', value)}
-                  />
-                </div>
-              </div>
-              <div className="lu-field-row">
-                <div className="lu-field lu-field--half">
-                  <TextField
-                    label="Pessoal - Instagram"
-                    value={settings.BUFFER_CHANNEL_PESSOAL_INSTAGRAM}
-                    onChange={(value) => updateEnv('BUFFER_CHANNEL_PESSOAL_INSTAGRAM', value)}
-                  />
-                </div>
-                <div className="lu-field lu-field--half">
-                  <TextField
-                    label="Pessoal - TikTok"
-                    value={settings.BUFFER_CHANNEL_PESSOAL_TIKTOK}
-                    onChange={(value) => updateEnv('BUFFER_CHANNEL_PESSOAL_TIKTOK', value)}
-                  />
-                </div>
-              </div>
-              <p className="lu-hint">
-                Os IDs de canal saem de `clipador-publish buffer-channels` depois de configurar a
-                BUFFER_API_KEY.
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
+        {!appInfo?.isPackaged && (
+          <p className="lu-hint">Auto-update so funciona no app instalado, nao em desenvolvimento.</p>
+        )}
+        {appInfo?.isPackaged && updateStatus && (
+          <p className="lu-hint">{updateStatusLabel(updateStatus)}</p>
+        )}
+      </Card>
 
       <div>
         <button

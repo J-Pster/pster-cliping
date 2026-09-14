@@ -104,9 +104,14 @@ $ScriptsDir = Join-Path $PythonDir 'Scripts'
 Get-ChildItem $ScriptsDir -Filter 'pip*.exe' -ErrorAction SilentlyContinue | Remove-Item -Force
 Get-ChildItem $ScriptsDir -Filter 'wheel.exe' -ErrorAction SilentlyContinue | Remove-Item -Force
 
-Write-Host "== Copiando kb/, assets/ e .env.example (read-only, seed inicial) =="
+Write-Host "== Copiando kb/, assets/, models/ e .env.example (read-only, seed inicial) =="
 Copy-Item -Recurse (Join-Path $EngineSrcDir 'kb') (Join-Path $EngineOutDir 'kb')
 Copy-Item -Recurse (Join-Path $EngineSrcDir 'assets') (Join-Path $EngineOutDir 'assets')
+# models/blaze_face_short_range.tflite: default do MediaPipeFaceDetector (reframe e
+# thumbnail do video principal) e um caminho relativo ao cwd do processo Python
+# (models/blaze_face_short_range.tflite). Sem copiar aqui, o app empacotado nunca
+# tinha esse arquivo e toda etapa de reframe falhava com "precisa de model_path".
+Copy-Item -Recurse (Join-Path $EngineSrcDir 'models') (Join-Path $EngineOutDir 'models')
 Copy-Item (Join-Path $EngineSrcDir '.env.example') (Join-Path $EngineOutDir '.env.example')
 
 if (Test-Path $TmpDir) { Remove-Item -Recurse -Force $TmpDir }

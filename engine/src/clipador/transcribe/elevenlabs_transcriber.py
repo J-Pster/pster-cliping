@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from clipador import usage
 from clipador.transcribe.audio import extract_audio, needs_extraction, probe_duration_seconds
 from clipador.transcribe.models import Segment, TranscriptionResult, Word, renumber_words
 from clipador.transcribe.normalize import NormalizationRules, normalize_transcription
@@ -351,6 +352,9 @@ class ElevenLabsTranscriber:
         # erro nenhum. `TranscriptionError` aqui e so pra erro de CONFIGURACAO (chave
         # ausente, extra nao instalado), que e o que o usuario consegue corrigir.
         logger.info("ElevenLabs Scribe: transcricao concluida em %.1fs", elapsed)
+        usage.record(
+            "elevenlabs", "transcribe", audio_seconds=_attr(response, "audio_duration_secs")
+        )
         return build_result_from_elevenlabs(
             response,
             audio_path=audio_path,

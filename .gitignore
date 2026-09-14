@@ -27,6 +27,7 @@ engine/*.mp3
 engine/*.m4a
 engine/output/
 engine/models/
+engine/usage-logs/
 engine/vendor/
 engine/work/
 engine/.pytest_cache/

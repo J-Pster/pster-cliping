@@ -39,6 +39,7 @@ from clipador.export.writer import ExportWriter
 from clipador.kb.knowledge import KnowledgeBase
 from clipador.metadata.generator import generate_metadata
 from clipador.pipeline import ClipFailure, ClipStageError, _run, clip_excerpt, slugify_title
+from clipador import usage
 from clipador.progress import OnProgress, noop_progress
 from clipador.reframe.faces import MediaPipeFaceDetector
 from clipador.select.models import SHORT_FORMAT, ClipCandidate
@@ -226,6 +227,7 @@ def rebrand_batch(
     eleitoral_overlay: WatermarkOverlay | None = None,
     on_progress: OnProgress = noop_progress,
 ) -> RebrandBatchResult:
+    usage.configure(on_progress)
     category_module.validate_category(category)
     batch_folder = batch_name or f"rebrand_{slugify_title(input_dir.name) or input_dir.name}"
 

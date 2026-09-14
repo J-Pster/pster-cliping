@@ -16,9 +16,13 @@ import os
 import time
 from typing import Any
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
-load_dotenv(override=True)  # .env do projeto sempre vence env var solta do sistema
+from clipador import usage
+
+# ver comentario em clipador/llm/provider.py: sem find_dotenv(usecwd=True), dotenv
+# procura .env a partir da pasta deste arquivo, nao do cwd do processo.
+load_dotenv(find_dotenv(usecwd=True), override=True)
 
 # Pro (nao Flash): selecao/rerank/metadados pedem o mesmo nivel de raciocinio que o
 # Claude Sonnet faz hoje - fica configuravel via env pra quem quiser trocar por um Flash
@@ -131,6 +135,15 @@ class _Messages:
                 if attempt == attempts - 1:
                     raise
                 time.sleep(min(2**attempt, 30))
+
+        response_usage = getattr(response, "usage_metadata", None)
+        if response_usage is not None:
+            usage.record(
+                "gemini",
+                "text",
+                input_tokens=getattr(response_usage, "prompt_token_count", None),
+                output_tokens=getattr(response_usage, "candidates_token_count", None),
+            )
 
         blocks: list[Any] = []
         for candidate in getattr(response, "candidates", None) or []:

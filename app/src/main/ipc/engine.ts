@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { delimiter } from 'node:path'
+import { mkdir } from 'node:fs/promises'
+import { delimiter, isAbsolute, join } from 'node:path'
 import { spawn, type ChildProcess } from 'node:child_process'
 import type { BrowserWindow } from 'electron'
 import { IpcChannel } from '../../shared/ipc-channels'
@@ -16,7 +17,12 @@ import { buildClipArgv, buildRebrandArgv } from './argv-builder'
 import { getSettings } from './settings'
 import { getFeatures } from './features'
 import { bakedImagePath } from './watermark'
-import { bundledFfmpegDir, defaultFontsDir, hasBundledFfmpeg } from '../runtime-paths'
+import {
+  bundledFfmpegDir,
+  defaultFaceModelPath,
+  defaultFontsDir,
+  hasBundledFfmpeg
+} from '../runtime-paths'
 
 /** No build empacotado o ffmpeg embutido nao esta no PATH do sistema (o app nao
  * instala nada globalmente): prefixa o PATH so deste processo filho, sem tocar no
@@ -31,6 +37,20 @@ function childEnv(): NodeJS.ProcessEnv {
   const pathKey = process.platform === 'win32' ? 'Path' : 'PATH'
   const currentPath = base[pathKey] ?? ''
   return { ...base, [pathKey]: `${bundledFfmpegDir()}${delimiter}${currentPath}` }
+}
+
+// Mesmo default de `clipador.cli`/`clipador.rebrand.cli` (DEFAULT_OUTPUT_ROOT).
+const DEFAULT_OUTPUT_DIRNAME = 'output'
+
+/** Garante que a pasta de saida existe ANTES de rodar o engine: sem isso, um caminho
+ * digitado a mao (ou lembrado de uma sessao anterior, numa pasta ja apagada/num disco
+ * removivel desconectado) so falharia la na etapa 8 do pipeline, depois de download e
+ * transcricao ja terem custado minutos e credito de API. Relativo resolve contra
+ * engineDir, igual ao Path(args.output) do lado Python (cwd do processo spawnado). */
+async function ensureOutputDirExists(engineDir: string, output: string | undefined): Promise<void> {
+  const target = output && output.trim() ? output : DEFAULT_OUTPUT_DIRNAME
+  const resolved = isAbsolute(target) ? target : join(engineDir, target)
+  await mkdir(resolved, { recursive: true })
 }
 
 const runningJobs = new Map<string, ChildProcess>()
@@ -63,7 +83,15 @@ function toProgressEvent(
     format: raw.format as string | undefined,
     directory: raw.directory as string | undefined,
     status: raw.status as string | undefined,
-    stage: raw.stage as string | undefined
+    stage: raw.stage as string | undefined,
+    runId: raw.run_id as string | undefined,
+    provider: raw.provider as EngineProgressEvent['provider'],
+    operation: raw.operation as string | undefined,
+    inputTokens: raw.input_tokens as number | undefined,
+    outputTokens: raw.output_tokens as number | undefined,
+    characters: raw.characters as number | undefined,
+    audioSeconds: raw.audio_seconds as number | undefined,
+    images: raw.images as number | undefined
   }
 }
 
@@ -152,15 +180,30 @@ export async function runClip(window: BrowserWindow, args: ClipJobArgs): Promise
         }
       : { ...args, watermark: 'off', watermarkShort: undefined, watermarkLong: undefined }
 
-  const effectiveArgs: ClipJobArgs = { ...withWatermark, fontsDir: args.fontsDir ?? defaultFontsDir() }
+  const effectiveArgs: ClipJobArgs = {
+    ...withWatermark,
+    fontsDir: args.fontsDir ?? defaultFontsDir(),
+    faceModelPath: args.faceModelPath ?? defaultFaceModelPath()
+  }
 
+  await ensureOutputDirExists(settings.engineDir, effectiveArgs.output)
   return runEngine(window, settings.pythonPath, settings.engineDir, buildClipArgv(effectiveArgs, features))
 }
 
 export async function runRebrand(window: BrowserWindow, args: RebrandJobArgs): Promise<JobHandle> {
   const settings = await getSettings()
   const features = await getFeatures()
-  return runEngine(window, settings.pythonPath, settings.engineDir, buildRebrandArgv(args, features))
+  const effectiveArgs: RebrandJobArgs = {
+    ...args,
+    faceModelPath: args.faceModelPath ?? defaultFaceModelPath()
+  }
+  await ensureOutputDirExists(settings.engineDir, effectiveArgs.output)
+  return runEngine(
+    window,
+    settings.pythonPath,
+    settings.engineDir,
+    buildRebrandArgv(effectiveArgs, features)
+  )
 }
 
 export function cancelJob(jobId: string): void {

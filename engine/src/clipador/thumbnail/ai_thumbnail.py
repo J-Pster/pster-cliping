@@ -23,17 +23,20 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 from PIL import Image
 
 from clipador.thumbnail.models import ThumbnailError
 
 from clipador import category as category_module
+from clipador import usage
 from clipador.thumbnail.face_library import PoliticalFigure
 
 logger = logging.getLogger(__name__)
 
-load_dotenv(override=True)  # .env do projeto sempre vence env var solta do sistema
+# ver comentario em clipador/llm/provider.py: sem find_dotenv(usecwd=True), dotenv
+# procura .env a partir da pasta deste arquivo, nao do cwd do processo.
+load_dotenv(find_dotenv(usecwd=True), override=True)
 
 # Flash (nao Pro): mais rapido e barato, e o teste real mostrou qualidade de texto/rosto
 # boa o suficiente. O Pro (`gemini-3-pro-image-preview`) e mais fiel mas, no teste real,
@@ -324,6 +327,14 @@ class AIThumbnailGenerator:
             response = chat.send_message([prompt, frame, *reference_images])
         except Exception as exc:
             raise ThumbnailError(f"Chamada ao Gemini falhou: {exc}") from exc
+        response_usage = getattr(response, "usage_metadata", None)
+        usage.record(
+            "gemini",
+            "thumbnail_image",
+            images=1,
+            input_tokens=getattr(response_usage, "prompt_token_count", None),
+            output_tokens=getattr(response_usage, "candidates_token_count", None),
+        )
         image = _first_image(response)
         if image is None:
             raise ThumbnailError("Resposta do Gemini sem imagem: nao da pra gerar a thumbnail.")

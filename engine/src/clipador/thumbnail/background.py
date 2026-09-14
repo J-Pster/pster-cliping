@@ -16,14 +16,17 @@ import logging
 import os
 from typing import Any, Callable
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 from PIL import Image, ImageEnhance, ImageFilter
 
 from clipador import category as category_module
+from clipador import usage
 
 logger = logging.getLogger(__name__)
 
-load_dotenv(override=True)  # .env do projeto sempre vence env var solta do sistema
+# ver comentario em clipador/llm/provider.py: sem find_dotenv(usecwd=True), dotenv
+# procura .env a partir da pasta deste arquivo, nao do cwd do processo.
+load_dotenv(find_dotenv(usecwd=True), override=True)
 
 MODEL_ID = "gemini-2.5-flash-image"
 
@@ -149,6 +152,14 @@ class GeminiBackgroundEditor:
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=[prompt or self.prompt, frame],
+            )
+            response_usage = getattr(response, "usage_metadata", None)
+            usage.record(
+                "gemini",
+                "thumbnail_background",
+                images=1,
+                input_tokens=getattr(response_usage, "prompt_token_count", None),
+                output_tokens=getattr(response_usage, "candidates_token_count", None),
             )
             edited = _first_image(response)
             if edited is None:

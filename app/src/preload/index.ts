@@ -77,6 +77,11 @@ const api: ClipadorApi = {
     get: () => ipcRenderer.invoke(IpcChannel.featuresGet),
     save: (config: FeaturesConfig) => ipcRenderer.invoke(IpcChannel.featuresSave, config)
   },
+  preferences: {
+    getLastOutputDir: () => ipcRenderer.invoke(IpcChannel.preferencesGetLastOutputDir),
+    saveLastOutputDir: (path: string) =>
+      ipcRenderer.invoke(IpcChannel.preferencesSaveLastOutputDir, path)
+  },
   watermark: {
     pickSourceImage: () => ipcRenderer.invoke(IpcChannel.watermarkPickSourceImage),
     readSourceImage: () => ipcRenderer.invoke(IpcChannel.watermarkReadSourceImage),
