@@ -100,6 +100,9 @@ const api: ClipadorApi = {
       ipcRenderer.on(IpcChannel.appUpdateStatusEvent, listener)
       return () => ipcRenderer.removeListener(IpcChannel.appUpdateStatusEvent, listener)
     }
+  },
+  pricing: {
+    getUsdBrlRate: (): Promise<number> => ipcRenderer.invoke(IpcChannel.pricingGetUsdBrlRate)
   }
 }
 

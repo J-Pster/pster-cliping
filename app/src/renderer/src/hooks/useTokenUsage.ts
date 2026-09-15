@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import type { EngineProgressEvent, UsageProvider } from '@shared/ipc-contract'
+import { estimateCostUsd } from '@shared/pricing'
 
 export interface ProviderUsageTotals {
   inputTokens: number
@@ -8,12 +9,26 @@ export interface ProviderUsageTotals {
   audioSeconds: number
   images: number
   calls: number
+  /** Soma do custo estimado (USD) de cada chamada, calculado NA HORA do evento pelo
+   * (provider, operation) exatos daquela chamada - nao dá pra recalcular a partir do
+   * total agregado porque gemini "text" e "thumbnail_image" tem precos diferentes.
+   * Conversao pra BRL acontece so na exibicao (ver TokenUsagePanel), com a cotacao
+   * do momento, nao a de quando a chamada aconteceu. */
+  costUsd: number
 }
 
 export type UsageTotals = Partial<Record<UsageProvider, ProviderUsageTotals>>
 
 function emptyTotals(): ProviderUsageTotals {
-  return { inputTokens: 0, outputTokens: 0, characters: 0, audioSeconds: 0, images: 0, calls: 0 }
+  return {
+    inputTokens: 0,
+    outputTokens: 0,
+    characters: 0,
+    audioSeconds: 0,
+    images: 0,
+    calls: 0,
+    costUsd: 0
+  }
 }
 
 /** Acumula os eventos de progresso "usage" (ver engine/src/clipador/usage.py) num total
@@ -29,6 +44,12 @@ export function useTokenUsage(): {
   const onProgressEvent = useCallback((event: EngineProgressEvent) => {
     if (event.event !== 'usage' || !event.provider) return
     const provider = event.provider
+    const eventCostUsd = estimateCostUsd(provider, event.operation, {
+      inputTokens: event.inputTokens,
+      outputTokens: event.outputTokens,
+      images: event.images,
+      audioSeconds: event.audioSeconds
+    })
     setTotals((current) => {
       const previous = current[provider] ?? emptyTotals()
       return {
@@ -39,7 +60,8 @@ export function useTokenUsage(): {
           characters: previous.characters + (event.characters ?? 0),
           audioSeconds: previous.audioSeconds + (event.audioSeconds ?? 0),
           images: previous.images + (event.images ?? 0),
-          calls: previous.calls + 1
+          calls: previous.calls + 1,
+          costUsd: previous.costUsd + eventCostUsd
         }
       }
     })

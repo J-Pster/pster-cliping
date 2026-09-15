@@ -1,5 +1,6 @@
 import type { UsageProvider } from '@shared/ipc-contract'
 import type { UsageTotals } from '../hooks/useTokenUsage'
+import { useUsdBrlRate } from '../hooks/useUsdBrlRate'
 
 const PROVIDER_LABELS: Record<UsageProvider, string> = {
   claude: 'Claude',
@@ -15,12 +16,23 @@ function formatNumber(value: number): string {
   return Math.round(value).toLocaleString('pt-BR')
 }
 
+function formatBrl(value: number): string {
+  return value.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: value < 1 ? 4 : 2
+  })
+}
+
 interface TokenUsagePanelProps {
   totals: UsageTotals
 }
 
 export default function TokenUsagePanel({ totals }: TokenUsagePanelProps): React.JSX.Element {
+  const usdBrlRate = useUsdBrlRate()
   const providers = PROVIDER_ORDER.filter((provider) => totals[provider])
+  const totalCostBrl = providers.reduce((sum, provider) => sum + (totals[provider]?.costUsd ?? 0), 0) * usdBrlRate
 
   return (
     <div className="lu-usage-panel">
@@ -53,9 +65,18 @@ export default function TokenUsagePanel({ totals }: TokenUsagePanelProps): React
               </div>
             )}
             <div className="lu-usage-panel__fine">{usage.calls} chamada(s)</div>
+            {usage.costUsd > 0 && (
+              <div className="lu-usage-panel__cost">~ {formatBrl(usage.costUsd * usdBrlRate)}</div>
+            )}
           </div>
         )
       })}
+      {totalCostBrl > 0 && (
+        <div className="lu-usage-panel__total">
+          <span>Total estimado</span>
+          <span>~ {formatBrl(totalCostBrl)}</span>
+        </div>
+      )}
     </div>
   )
 }

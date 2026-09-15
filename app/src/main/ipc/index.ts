@@ -23,6 +23,7 @@ import {
   saveBakedImage
 } from './watermark'
 import { checkForUpdates, getAppInfo, quitAndInstall } from '../updater'
+import { getUsdBrlRate } from '../pricing'
 
 export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle(IpcChannel.appGetInfo, () => getAppInfo())
@@ -79,4 +80,6 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle(IpcChannel.watermarkReadBakedImage, (_event, format: WatermarkFormat) =>
     readBakedImage(format)
   )
+
+  ipcMain.handle(IpcChannel.pricingGetUsdBrlRate, () => getUsdBrlRate())
 }

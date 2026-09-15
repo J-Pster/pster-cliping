@@ -389,6 +389,17 @@ export interface AppApi {
   onUpdateStatus(callback: (status: UpdateStatus) => void): Unsubscribe
 }
 
+// ---------------------------------------------------------------------------
+// Cotacao para converter o custo estimado de consumo (ver shared/pricing.ts) de
+// USD para BRL no TokenUsagePanel.
+// ---------------------------------------------------------------------------
+
+export interface PricingApi {
+  /** Cotacao USD/BRL atual (busca dinamica com cache no main; cai para uma constante
+   * estatica em shared/pricing.ts se a busca falhar). */
+  getUsdBrlRate(): Promise<number>
+}
+
 export interface ClipadorApi {
   settings: SettingsApi
   dialogs: DialogsApi
@@ -398,4 +409,5 @@ export interface ClipadorApi {
   preferences: PreferencesApi
   watermark: WatermarkApi
   app: AppApi
+  pricing: PricingApi
 }

@@ -37,5 +37,6 @@ export const IpcChannel = {
   appCheckForUpdates: 'app:check-for-updates',
   appQuitAndInstall: 'app:quit-and-install',
   /** Evento (main -> renderer) de progresso do auto-update; payload e UpdateStatus. */
-  appUpdateStatusEvent: 'app:update-status-event'
+  appUpdateStatusEvent: 'app:update-status-event',
+  pricingGetUsdBrlRate: 'pricing:get-usd-brl-rate'
 } as const
