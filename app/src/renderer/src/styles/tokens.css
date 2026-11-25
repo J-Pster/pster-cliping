@@ -1,7 +1,7 @@
 /*
  * Design tokens, traduzidos de DESIGN.md (MMCC: Minimalist Modern Compact Clean).
- * Fonte da verdade original: bidchex-frontend/src/styles/_variables.scss e
- * _themes.scss. Este app so tem tema claro, sem alternancia.
+ * Fonte da verdade original: _variables.scss e _themes.scss do projeto de
+ * onde o sistema foi portado. Este app so tem tema claro, sem alternancia.
  */
 
 :root {

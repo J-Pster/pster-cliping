@@ -2,7 +2,7 @@
 
 **MMCC: Minimalist, Modern, Compact, Clean.**
 
-Same structural discipline as any BidChex-grade MMCC system (black/white base, one neutral chrome, functional color only where it carries meaning), tuned to Clipador's brand: Brazil flag green, yellow and blue as the accent family, black and white as the base. This document is the target system to build the Angular app against, there is no shipped SCSS yet. Once `frontend/src/styles/` exists, that SCSS becomes the source of truth and this file gets updated to match it, not the other way around.
+Same structural discipline as any MMCC system (black/white base, one neutral chrome, functional color only where it carries meaning), tuned to Clipador's brand: Brazil flag green, yellow and blue as the accent family, black and white as the base. This document is the target system to build the Angular app against, there is no shipped SCSS yet. Once `frontend/src/styles/` exists, that SCSS becomes the source of truth and this file gets updated to match it, not the other way around.
 
 The UI is theme-agnostic, driven entirely by CSS custom properties. Never hardcode chrome colors, always use the tokens. Support dark (default) and light themes via `data-theme` on `:root`, plus a `prefers-color-scheme` fallback when no attribute is set.
 

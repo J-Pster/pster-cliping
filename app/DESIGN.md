@@ -1,8 +1,8 @@
-# Design System, BidChex MMCC
+# Design System, MMCC
 
 **MMCC: Minimalist, Modern, Compact, Clean.**
 
-This document describes the design as it actually exists in `bidchex-frontend`. The source of truth is the SCSS in `src/styles/` (`_variables.scss`, `_themes.scss`, `_mixins.scss`, `_buttons.scss`, `_dashboard-form-fields.scss`, `_modal-shell.scss`) and the real components (dashboard header/sidebar, dashboard tabs, project-detail tables, the shared dropdown). When in doubt, read those files, not this summary.
+This document describes the MMCC design system as it exists in the original project it was ported from. The source of truth there is the SCSS in `src/styles/` (`_variables.scss`, `_themes.scss`, `_mixins.scss`, `_buttons.scss`, `_dashboard-form-fields.scss`, `_modal-shell.scss`) and the real components (dashboard header/sidebar, dashboard tabs, project-detail tables, the shared dropdown). When in doubt, read those files, not this summary.
 
 The UI is theme-agnostic, driven entirely by CSS custom properties. Never hardcode chrome colors, always use the tokens. The system supports dark (default) and light themes via `data-theme` on `:root` (also `.dark-theme` / `.light-theme` classes, and a `prefers-color-scheme` fallback when no attribute is set).
 
